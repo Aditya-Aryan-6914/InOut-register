@@ -67,6 +67,25 @@ python app.py
 
 The app will start on the default Flask development server, usually at `http://127.0.0.1:5000`.
 
+## Create the Database
+
+This project uses SQLite. To create the database and tables from `app.py`, run:
+
+```bash
+python
+```
+
+Then in the Python shell:
+
+```python
+from app import app, db
+
+with app.app_context():
+	db.create_all()
+```
+
+This must run inside `app.app_context()` because SQLAlchemy needs an active Flask application context to access the app configuration.
+
 ## Deactivate the Virtual Environment
 
 When you are done, deactivate the environment with:
@@ -81,10 +100,7 @@ deactivate
 .
 ├── app.py
 ├── requirements.txt
-├── README.mdfrom app import app, db
-
-with app.app_context():
-    db.create_all()
+├── README.md
 ├── .gitignore
 ├── instance/
 └── templates/
@@ -92,15 +108,14 @@ with app.app_context():
 	└── index.html
 ```
 
-<img width="1151" height="816" alt="Untitled Diagram drawio" src="https://github.com/user-attachments/assets/6ea1c3c0-0043-4af2-8651-34325a0fefe9" />
-
 
 ## Troubleshooting
 
 - If the app cannot import Flask or Flask-SQLAlchemy, make sure the virtual environment is activated before running it.
 - If `python` still points to a global interpreter, confirm the shell prompt shows `.venv` and run `which python` or `where python` to verify the active interpreter.
 - If the port is already in use, stop the other process or run Flask on a different port.
-- If SQLite data becomes corrupted during local testing, delete the local `inout.db` file and restart the app to recreate it.
+- If `db.create_all()` fails, make sure you imported both `app` and `db` from `app.py` and wrapped the call in `with app.app_context():`.
+- If SQLite data becomes corrupted during local testing, delete the local `inout.db` file and run the database creation step again.
 
 ## Notes
 
