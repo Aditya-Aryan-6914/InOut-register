@@ -81,13 +81,19 @@ deactivate
 .
 ├── app.py
 ├── requirements.txt
-├── README.md
+├── README.mdfrom app import app, db
+
+with app.app_context():
+    db.create_all()
 ├── .gitignore
 ├── instance/
 └── templates/
 	├── admin.html
 	└── index.html
 ```
+
+<img width="1151" height="816" alt="Untitled Diagram drawio" src="https://github.com/user-attachments/assets/6ea1c3c0-0043-4af2-8651-34325a0fefe9" />
+
 
 ## Troubleshooting
 
