@@ -1,21 +1,23 @@
 # InOut-register
 
-InOut-register is a small Flask application for tracking in/out register data. It uses SQLite for local storage and a simple web UI for the public and admin pages.
+InOut-register is a Flask-based campus attendance and in/out registration app. It now uses a package-based structure with blueprints for the main landing pages and authentication-related routes, backed by SQLite.
 
 ## Project Overview
 
-The application is a minimal Flask project with two routes:
+The application currently provides:
 
 - `/` for the main landing page
 - `/admin` for the admin page
+- `/admin/login` for the admin login view
+- `/user/login` for the user login view
 
-The current setup uses SQLite and does not require any external services or environment variables.
+The project is organized as a proper Flask package so routes and app configuration are easier to extend.
 
 ## Prerequisites
 
 - Python 3.12 or newer
 - `pip`
-- A terminal or command prompt
+- A terminal
 
 ## Create the Virtual Environment
 
@@ -28,14 +30,7 @@ py -m venv .venv
 .venv\Scripts\activate
 ```
 
-### macOS
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### Linux
+### macOS / Linux
 
 ```bash
 python3 -m venv .venv
@@ -44,47 +39,63 @@ source .venv/bin/activate
 
 ## Install Dependencies
 
-After activating the virtual environment, install the exact dependency set from `requirements.txt`:
+After activating the virtual environment, install the dependencies from `requirements.txt`:
 
 ```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## Environment Variables
-
-No environment variables are required for the current codebase.
-
-If you later add configuration, store local values in a `.env` file and keep it out of version control.
-
 ## Run the Project
 
-With the virtual environment activated, start the app from the project root:
+Start the app from the project root:
 
 ```bash
-python app.py
+python run.py
 ```
 
-The app will start on the default Flask development server, usually at `http://127.0.0.1:5000`.
+The app will run on:
 
-## Create the Database
+```text
+http://127.0.0.1:5000/
+```
 
-This project uses SQLite. To create the database and tables from `app.py`, run:
+## Run Tests
+
+The project includes a small regression test suite for the routing setup:
 
 ```bash
-python
+pytest -q
 ```
 
-Then in the Python shell:
+If you are using the project virtual environment, run the command after activating it.
 
-```python
-from app import app, db
+## Project Structure
 
-with app.app_context():
-	db.create_all()
+```text
+.
+├── CampusTrack/
+│   ├── __init__.py
+│   ├── extensions.py
+│   ├── models.py
+│   ├── auth/
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── main/
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── static/
+│   ├── templates/
+│   └── instance/
+├── tests/
+├── run.py
+├── requirements.txt
+└── README.md
 ```
 
-This must run inside `app.app_context()` because SQLAlchemy needs an active Flask application context to access the app configuration.
+## Database Notes
+
+The app uses SQLite by default. The database file is created locally as `inout.db` when the app starts.
 
 ## Deactivate the Virtual Environment
 
@@ -94,30 +105,9 @@ When you are done, deactivate the environment with:
 deactivate
 ```
 
-## Project Structure
-
-```text
-.
-├── app.py
-├── requirements.txt
-├── README.md
-├── .gitignore
-├── instance/
-└── templates/
-	├── admin.html
-	└── index.html
-```
-
-
 ## Troubleshooting
 
-- If the app cannot import Flask or Flask-SQLAlchemy, make sure the virtual environment is activated before running it.
-- If `python` still points to a global interpreter, confirm the shell prompt shows `.venv` and run `which python` or `where python` to verify the active interpreter.
-- If the port is already in use, stop the other process or run Flask on a different port.
-- If `db.create_all()` fails, make sure you imported both `app` and `db` from `app.py` and wrapped the call in `with app.app_context():`.
-- If SQLite data becomes corrupted during local testing, delete the local `inout.db` file and run the database creation step again.
-
-## Notes
-
-- The database is local SQLite, so no separate database server is required.
-- The generated `.venv` directory and local database files are ignored by Git.
+- If Flask cannot be imported, make sure the virtual environment is activated.
+- If `pytest` is not found, install dependencies in the active virtual environment first.
+- If the app port is already in use, stop the conflicting process or run the app on another port.
+- If you want a fresh local database, remove the generated `inout.db` file and restart the app.
