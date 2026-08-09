@@ -31,16 +31,16 @@
 
     <nav class="main-nav" id="mainNav" aria-label="Primary">
       <ul>
-        <li><a href="#top">Home</a></li>
-        <li><a href="#features">Features</a></li>
-        <li><a href="#how-it-works">How it works</a></li>
-        <li><a href="#portals">Portals</a></li>
-        <li><a href="#contact">Contact</a></li>
+        <li><a href="{{ url_for('main.home') }}#top">Home</a></li>
+        <li><a href="{{ url_for('main.home') }}#features">Features</a></li>
+        <li><a href="{{ url_for('main.home') }}#how-it-works">How it works</a></li>
+        <li><a href="{{ url_for('main.home') }}#portals">Portals</a></li>
+        <li><a href="{{ url_for('main.home') }}#contact">Contact</a></li>
       </ul>
     </nav>
 
     <div class="header-actions">
-      <a href="#portals" class="btn btn-primary btn-sm">Log in</a>
+      <a href="{{ url_for('auth.user_login') }}" class="btn btn-primary btn-sm">Log in</a>
       <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mainNav" aria-label="Toggle menu">
         <span></span><span></span><span></span>
       </button>
@@ -56,7 +56,7 @@
 <footer class="site-footer" id="contact">
   <div class="wrap footer-top">
     <div class="footer-brand">
-      <a class="brand" href="#top" aria-label="CampusTrack home">
+      <a class="brand" href="{{ url_for('main.home') }}" aria-label="CampusTrack home">
         <span class="brand-badge" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="2" y="2" width="20" height="20" rx="5" fill="var(--blue-600)"/>
@@ -76,39 +76,37 @@
     <nav class="footer-col" aria-label="Product">
       <h4>Product</h4>
       <ul>
-        <li><a href="#features">Features</a></li>
-        <li><a href="#how-it-works">How it works</a></li>
-        <li><a href="#portals">Login portals</a></li>
-        <li><a href="#">Pricing</a></li>
+        <li><a href="{{ url_for('main.home') }}#features">Features</a></li>
+        <li><a href="{{ url_for('main.home') }}#how-it-works">How it works</a></li>
+        <li><a href="{{ url_for('main.home') }}#portals">Login portals</a></li>
+        <li><a href="{{ url_for('main.home') }}#contact">Contact</a></li>
       </ul>
     </nav>
 
     <nav class="footer-col" aria-label="Company">
       <h4>Company</h4>
       <ul>
-        <li><a href="#">About us</a></li>
-        <li><a href="#">Our team</a></li>
-        <li><a href="#">Careers</a></li>
-        <li><a href="#">Contact</a></li>
+        <li><a href="{{ url_for('main.home') }}#features">About us</a></li>
+        <li><a href="{{ url_for('main.home') }}#portals">Our team</a></li>
+        <li><a href="{{ url_for('main.home') }}#contact">Contact</a></li>
       </ul>
     </nav>
 
     <nav class="footer-col" aria-label="Resources">
       <h4>Resources</h4>
       <ul>
-        <li><a href="#">Documentation</a></li>
-        <li><a href="#">FAQs</a></li>
-        <li><a href="#">Support</a></li>
-        <li><a href="#">System status</a></li>
+        <li><a href="{{ url_for('main.home') }}#how-it-works">Documentation</a></li>
+        <li><a href="{{ url_for('main.home') }}#portals">FAQs</a></li>
+        <li><a href="{{ url_for('main.home') }}#contact">Support</a></li>
       </ul>
     </nav>
 
     <nav class="footer-col" aria-label="Legal">
       <h4>Legal</h4>
       <ul>
-        <li><a href="#">Privacy policy</a></li>
-        <li><a href="#">Terms of service</a></li>
-        <li><a href="#">Data &amp; security</a></li>
+        <li><a href="{{ url_for('main.home') }}#contact">Privacy policy</a></li>
+        <li><a href="{{ url_for('main.home') }}#contact">Terms of service</a></li>
+        <li><a href="{{ url_for('main.home') }}#contact">Data &amp; security</a></li>
       </ul>
     </nav>
   </div>

@@ -98,7 +98,7 @@
               <li>QR + face + location check-in</li>
               <li>Personal attendance history</li>
             </ul>
-            <a href="#" class="btn btn-primary btn-block">Log in as User</a>
+            <a href="{{ url_for('auth.user_login') }}" class="btn btn-primary btn-block">Log in as User</a>
           </div>
         </article>
 
@@ -115,7 +115,7 @@
               <li>Real-time present / absent dashboard</li>
               <li>Flag and review failed verifications</li>
             </ul>
-            <a href="#" class="btn btn-dark btn-block">Log in as Admin</a>
+            <a href="{{ url_for('auth.admin_login') }}" class="btn btn-dark btn-block">Log in as Admin</a>
           </div>
         </article>
 
