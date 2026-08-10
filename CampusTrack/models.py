@@ -1,52 +1,28 @@
-from .extensions import db
 """
 CampusTrack — Database Models
 ==============================
 Flask-SQLAlchemy schema covering: Institute, User (role-based), CustomField,
 JoinRequest, UserFieldValue, Room, AttendanceLog.
 
-PROJECT STRUCTURE ASSUMPTION
------------------------------
-This file assumes the app-factory + blueprint pattern we discussed, with a
-single shared `db` instance living in `extensions.py`:
-
-    # extensions.py
-    from flask_sqlalchemy import SQLAlchemy
-    db = SQLAlchemy()
-
-    # app.py
-    from extensions import db
-    def create_app():
-        app = Flask(__name__)
-        db.init_app(app)
-        ...
-
-If you'd rather keep everything in one file for now, just replace the
-import below with `db = SQLAlchemy()` directly in this file — everything
-else works unchanged. Either way, run this through Flask-Migrate
-(`flask db init / migrate / upgrade`) rather than `db.create_all()` once
-you start changing the schema, or you'll lose data on every tweak.
-
-ONE ADDITION BEYOND THE ORIGINAL LIST
---------------------------------------
-You asked for Institute, User, CustomField, Room, AttendanceLog and
-JoinRequest. I've added one more: **UserFieldValue**. Reasoning: CustomField
-defines the *questions* an institute asks (e.g. "Room No."), but something
-has to store each user's *answers*. JoinRequest holds answers temporarily
-as JSON while a request is pending (cheap, since it's short-lived and
-gets deleted after review). Once approved, those answers are copied into
-UserFieldValue as proper rows — so anything long-lived and queryable
-(e.g. "find everyone in Room 204") stays normalized, while the throwaway
-pending-request data doesn't need its own table.
+This file lives at CampusTrack/models.py, as a submodule of the
+CampusTrack package (app-factory + blueprints). It imports the shared
+`db` instance with a RELATIVE import (`from .extensions import db`) —
+that's not stylistic, it's required: an absolute `from extensions
+import db` would silently create a second, disconnected SQLAlchemy
+instance once this file is inside a package, and db.create_all() /
+your models would end up bound to two different registries.
 """
 
 from datetime import datetime
 import enum
+from typing import Any
 
 from flask_login import UserMixin
+from sqlalchemy import and_, func
+from sqlalchemy.orm import DynamicMapped, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from extensions import db
+from .extensions import db
 
 
 # =============================================================
@@ -70,7 +46,7 @@ class UserStatusEnum(enum.Enum):
 
 
 class PlanEnum(enum.Enum):
-    FREE = "free"            # ad-supported tier
+    FREE = "free"              # ad-supported tier
     SUBSCRIBED = "subscribed"  # one-time-subscription tier
 
 
@@ -97,6 +73,31 @@ class EventTypeEnum(enum.Enum):
 
 
 # =============================================================
+# Base model
+# =============================================================
+
+class BaseModel(db.Model):
+    """
+    Every concrete model inherits this instead of db.Model directly.
+
+    Why it exists: Pyright/Pylance doesn't understand SQLAlchemy's
+    dynamically-generated declarative __init__ (unlike mypy, which has a
+    dedicated SQLAlchemy plugin for this). Without this, Pylance flags
+    every normal `User(role=..., name=..., email=...)` call with a false
+    "No parameter named ..." error — for every field, on every model,
+    everywhere they're constructed. Declaring an explicit **kwargs
+    __init__ here (once) makes Pylance treat constructor calls as valid
+    without losing SQLAlchemy's normal keyword-assignment behavior at
+    runtime (it just forwards to the same constructor SQLAlchemy would
+    have used anyway).
+    """
+    __abstract__ = True
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+
+
+# =============================================================
 # Mixin
 # =============================================================
 
@@ -112,7 +113,7 @@ class TimestampMixin:
 # Institute
 # =============================================================
 
-class Institute(db.Model, TimestampMixin):
+class Institute(BaseModel, TimestampMixin):
     """
     One row per hostel / college / apartment complex. Owns its own set of
     CustomFields and Rooms. The "admin" of an institute is just a User row
@@ -141,21 +142,24 @@ class Institute(db.Model, TimestampMixin):
     # lazy="dynamic" returns a query object instead of a list, so you can
     # chain .filter_by()/.count() on institute.users without loading
     # every row into memory — matters once an institute has 1000+ users.
-    users = db.relationship(
+    # Typed as DynamicMapped[...] (rather than left for Flask-SQLAlchemy
+    # to infer) so Pylance/Pyright resolves .filter_by()/.order_by() etc.
+    # correctly instead of mis-inferring the attribute type.
+    users: DynamicMapped["User"] = relationship(
         "User", backref="institute", lazy="dynamic",
         foreign_keys="User.institute_id",
         cascade="all, delete-orphan",
     )
-    custom_fields = db.relationship(
+    custom_fields: DynamicMapped["CustomField"] = relationship(
         "CustomField", backref="institute", lazy="dynamic",
         order_by="CustomField.order",
         cascade="all, delete-orphan",
     )
-    rooms = db.relationship(
+    rooms: DynamicMapped["Room"] = relationship(
         "Room", backref="institute", lazy="dynamic",
         cascade="all, delete-orphan",
     )
-    join_requests = db.relationship(
+    join_requests: DynamicMapped["JoinRequest"] = relationship(
         "JoinRequest", backref="institute", lazy="dynamic",
         cascade="all, delete-orphan",
     )
@@ -188,7 +192,7 @@ class Institute(db.Model, TimestampMixin):
 # User  (superuser / admin / user — one table, one role column)
 # =============================================================
 
-class User(db.Model, UserMixin, TimestampMixin):
+class User(BaseModel, UserMixin, TimestampMixin):
     """
     One table for all three roles. UserMixin (Flask-Login) supplies
     is_authenticated / is_active / get_id() etc. for free.
@@ -220,11 +224,11 @@ class User(db.Model, UserMixin, TimestampMixin):
     status = db.Column(db.Enum(UserStatusEnum), default=UserStatusEnum.ACTIVE, nullable=False)
 
     # --- Relationships ---
-    field_values = db.relationship(
+    field_values: DynamicMapped["UserFieldValue"] = relationship(
         "UserFieldValue", backref="user", lazy="dynamic",
         cascade="all, delete-orphan",
     )
-    attendance_logs = db.relationship(
+    attendance_logs: DynamicMapped["AttendanceLog"] = relationship(
         "AttendanceLog", backref="user", lazy="dynamic",
         foreign_keys="AttendanceLog.user_id",
         cascade="all, delete-orphan",
@@ -265,7 +269,7 @@ class User(db.Model, UserMixin, TimestampMixin):
 # CustomField  (the admin's drag-and-drop form definition)
 # =============================================================
 
-class CustomField(db.Model, TimestampMixin):
+class CustomField(BaseModel, TimestampMixin):
     """
     One row per field the admin has added to their registration form
     (e.g. "Room No.", type=text, required=True, order=2).
@@ -286,7 +290,7 @@ class CustomField(db.Model, TimestampMixin):
     order = db.Column(db.Integer, default=0, nullable=False)    # drag-and-drop position
 
     # --- Relationships ---
-    values = db.relationship(
+    values: DynamicMapped["UserFieldValue"] = relationship(
         "UserFieldValue", backref="field", lazy="dynamic",
         cascade="all, delete-orphan",
     )
@@ -303,7 +307,7 @@ class CustomField(db.Model, TimestampMixin):
 # JoinRequest  (pending registration, awaiting admin approval)
 # =============================================================
 
-class JoinRequest(db.Model, TimestampMixin):
+class JoinRequest(BaseModel, TimestampMixin):
     """
     Created when someone fills the registration form. Holds everything
     needed to create a real User later, INCLUDING their chosen password
@@ -349,7 +353,7 @@ class JoinRequest(db.Model, TimestampMixin):
 # UserFieldValue  (an approved user's answer to one CustomField)
 # =============================================================
 
-class UserFieldValue(db.Model):
+class UserFieldValue(BaseModel):
     """
     Normalized storage for an active user's custom-field answers, e.g.
     (user_id=42, field_id=3, value="204"). Created by copying the
@@ -378,7 +382,7 @@ class UserFieldValue(db.Model):
 # Room  (a checkpoint the admin tracks — one QR code each)
 # =============================================================
 
-class Room(db.Model, TimestampMixin):
+class Room(BaseModel, TimestampMixin):
     """
     One row per checkpoint the admin wants attendance tracked for
     (a hostel room, a classroom, a building gate...). Created in bulk
@@ -410,7 +414,7 @@ class Room(db.Model, TimestampMixin):
     longitude = db.Column(db.Float, nullable=True)
     geofence_radius_m = db.Column(db.Integer, default=100, nullable=False)
 
-    attendance_logs = db.relationship(
+    attendance_logs: DynamicMapped["AttendanceLog"] = relationship(
         "AttendanceLog", backref="room", lazy="dynamic",
         cascade="all, delete-orphan",
     )
@@ -431,7 +435,7 @@ class Room(db.Model, TimestampMixin):
         sub = (
             db.session.query(
                 AttendanceLog.user_id,
-                db.func.max(AttendanceLog.timestamp).label("latest"),
+                func.max(AttendanceLog.timestamp).label("latest"),
             )
             .filter(AttendanceLog.room_id == self.id)
             .group_by(AttendanceLog.user_id)
@@ -441,7 +445,7 @@ class Room(db.Model, TimestampMixin):
             db.session.query(AttendanceLog)
             .join(
                 sub,
-                db.and_(
+                and_(
                     AttendanceLog.user_id == sub.c.user_id,
                     AttendanceLog.timestamp == sub.c.latest,
                 ),
@@ -461,7 +465,7 @@ class Room(db.Model, TimestampMixin):
 # AttendanceLog  (one row per scan event)
 # =============================================================
 
-class AttendanceLog(db.Model):
+class AttendanceLog(BaseModel):
     """
     One row per verified scan — a check-in OR a check-out, not a pair.
     Deriving "is this person currently in?" from "their most recent
