@@ -1,23 +1,21 @@
 # InOut-register
 
-InOut-register is a Flask-based campus attendance and in/out registration app. It now uses a package-based structure with blueprints for the main landing pages and authentication-related routes, backed by SQLite.
+InOut-register is a small Flask application for tracking in/out register data. It uses SQLite for local storage and a simple web UI for the public and admin pages.
 
 ## Project Overview
 
-The application currently provides:
+The application is a minimal Flask project with two routes:
 
 - `/` for the main landing page
 - `/admin` for the admin page
-- `/admin/login` for the admin login view
-- `/user/login` for the user login view
 
-The project is organized as a proper Flask package so routes and app configuration are easier to extend.
+The current setup uses SQLite and does not require any external services or environment variables.
 
 ## Prerequisites
 
 - Python 3.12 or newer
 - `pip`
-- A terminal
+- A terminal or command prompt
 
 ## Create the Virtual Environment
 
@@ -30,7 +28,14 @@ py -m venv .venv
 .venv\Scripts\activate
 ```
 
-### macOS / Linux
+### macOS
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### Linux
 
 ```bash
 python3 -m venv .venv
@@ -39,63 +44,47 @@ source .venv/bin/activate
 
 ## Install Dependencies
 
-After activating the virtual environment, install the dependencies from `requirements.txt`:
+After activating the virtual environment, install the exact dependency set from `requirements.txt`:
 
 ```bash
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+## Environment Variables
+
+No environment variables are required for the current codebase.
+
+If you later add configuration, store local values in a `.env` file and keep it out of version control.
+
 ## Run the Project
 
-Start the app from the project root:
+With the virtual environment activated, start the app from the project root:
 
 ```bash
-python run.py
+python app.py
 ```
 
-The app will run on:
+The app will start on the default Flask development server, usually at `http://127.0.0.1:5000`.
 
-```text
-http://127.0.0.1:5000/
-```
+## Create the Database
 
-## Run Tests
-
-The project includes a small regression test suite for the routing setup:
+This project uses SQLite. To create the database and tables from `app.py`, run:
 
 ```bash
-pytest -q
+python
 ```
 
-If you are using the project virtual environment, run the command after activating it.
+Then in the Python shell:
 
-## Project Structure
+```python
+from app import app, db
 
-```text
-.
-├── CampusTrack/
-│   ├── __init__.py
-│   ├── extensions.py
-│   ├── models.py
-│   ├── auth/
-│   │   ├── __init__.py
-│   │   └── routes.py
-│   ├── main/
-│   │   ├── __init__.py
-│   │   └── routes.py
-│   ├── static/
-│   ├── templates/
-│   └── instance/
-├── tests/
-├── run.py
-├── requirements.txt
-└── README.md
+with app.app_context():
+	db.create_all()
 ```
 
-## Database Notes
-
-The app uses SQLite by default. The database file is created locally as `inout.db` when the app starts.
+This must run inside `app.app_context()` because SQLAlchemy needs an active Flask application context to access the app configuration.
 
 ## Deactivate the Virtual Environment
 
@@ -105,9 +94,48 @@ When you are done, deactivate the environment with:
 deactivate
 ```
 
+## Project Structure
+
+```text
+.
+INOUT-REGISTER/
+├── .venv/                   # Virtual environment folder (always local, never committed)
+├── instance/                # Instance folder for secret keys, local SQLite DBs (git-ignored)
+│   └── config.py            # Local sensitive configuration overrides
+├── CampusTrack/             # Main application package
+│   ├── __init__.py          # Application Factory: defines create_app()
+│   ├── extensions.py        # Shared extension instances (e.g., SQLAlchemy db = SQLAlchemy())
+│   ├── models.py            # Shared database models
+│   ├── static/              # Global static files (shared across blueprints)
+|	|	├── img/
+│   │   ├── css/
+│   │   └── js/
+│   ├── templates/           # Global templates
+│   │   ├── base.html        # Main template layout
+│   │   └── errors/          # Custom error pages (404, 500)
+│   ├── main/                # Blueprint 1: Core site logic
+│   │   ├── __init__.py      # Defines main_bp = Blueprint('main', __name__)
+│   │   └── routes.py        # Views using @main_bp.route()
+│   └── auth/                # Blueprint 2: Auth logic (Example of modular scaling)
+│       ├── __init__.py      # Defines auth_bp = Blueprint('auth', __name__)
+│       └── routes.py        # Views using @auth_bp.route()
+├── .gitignore               # Ignores .venv/, instance/, and __pycache__/
+├── readme.md                # Project documentation and setup instructions
+├── requirements.txt         # List of Python dependencies
+└── run.py                   # Root entry point to launch the application
+l
+```
+
+
 ## Troubleshooting
 
-- If Flask cannot be imported, make sure the virtual environment is activated.
-- If `pytest` is not found, install dependencies in the active virtual environment first.
-- If the app port is already in use, stop the conflicting process or run the app on another port.
-- If you want a fresh local database, remove the generated `inout.db` file and restart the app.
+- If the app cannot import Flask or Flask-SQLAlchemy, make sure the virtual environment is activated before running it.
+- If `python` still points to a global interpreter, confirm the shell prompt shows `.venv` and run `which python` or `where python` to verify the active interpreter.
+- If the port is already in use, stop the other process or run Flask on a different port.
+- If `db.create_all()` fails, make sure you imported both `app` and `db` from `app.py` and wrapped the call in `with app.app_context():`.
+- If SQLite data becomes corrupted during local testing, delete the local `inout.db` file and run the database creation step again.
+
+## Notes
+
+- The database is local SQLite, so no separate database server is required.
+- The generated `.venv` directory and local database files are ignored by Git.
