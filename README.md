@@ -108,8 +108,9 @@ InOut-register/
 ├── requirements.txt
 └── run.py
 ```
-##System Architecture
-<img width="1151" height="816" alt="Untitled Diagram drawio" src="https://github.com/user-attachments/assets/6ea1c3c0-0043-4af2-8651-34325a0fefe9" />
+## System Architecture
+
+<img width="1151" height="816" alt="Untitled Diagram drawio" src="/workspaces/InOut-register/CampusTrack/static/img/sa.png" />
 
 ## Troubleshooting
 
