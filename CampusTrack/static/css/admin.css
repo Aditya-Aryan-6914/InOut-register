@@ -1,0 +1,138 @@
+/* =========================================================
+   CampusTrack — Shared Admin Panel Styles
+   Used by admin/fields.html, admin/rooms.html, and future
+   admin pages. Same design tokens as templates/auth/admin_signup.html
+   (light blue + white theme) — consolidated here so new admin pages
+   don't need to repeat a <style> block each time.
+   ========================================================= */
+
+:root {
+  --ct-white: #ffffff;
+  --ct-sky-50: #F3F9FD;
+  --ct-sky-100: #E4F2FB;
+  --ct-sky-200: #D2EAF8;
+  --ct-blue-600: #0E7AB8;
+  --ct-blue-700: #0B5E8F;
+  --ct-ink-900: #0E2438;
+  --ct-ink-700: #24455C;
+  --ct-ink-500: #5C6B7A;
+  --ct-line: #CFE6F6;
+  --ct-amber-500: #F2A93B;
+  --ct-amber-700: #B97F1E;
+  --ct-red-600: #B3261E;
+  --ct-green-600: #17A673;
+  --ct-radius: 14px;
+  --ct-shadow: 0 8px 24px rgba(14, 78, 118, 0.08);
+}
+
+.ct-admin-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  color: var(--ct-ink-900);
+}
+
+.ct-admin-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.ct-admin-eyebrow {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ct-blue-600);
+  margin: 0 0 4px;
+}
+.ct-admin-header h1 { font-size: 1.6rem; margin: 0; }
+.ct-admin-sub { color: var(--ct-ink-500); font-size: 0.92rem; margin: 4px 0 0; }
+
+.ct-admin-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ct-admin-nav a {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ct-blue-700);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ct-line);
+}
+.ct-admin-nav a:hover,
+.ct-admin-nav a.active {
+  background: var(--ct-sky-100);
+}
+
+.ct-flash-list {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ct-flash {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+.ct-flash-error { background: #FDECEA; color: var(--ct-red-600); border: 1px solid #F5C2C0; }
+.ct-flash-success { background: #E7F6EE; color: var(--ct-green-600); border: 1px solid #BEE8D2; }
+.ct-flash-info { background: var(--ct-sky-100); color: var(--ct-blue-700); border: 1px solid var(--ct-line); }
+
+.ct-card {
+  background: var(--ct-white);
+  border: 1px solid var(--ct-line);
+  border-radius: var(--ct-radius);
+  box-shadow: var(--ct-shadow);
+}
+
+.ct-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  padding: 9px 18px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.ct-btn-primary { background: var(--ct-blue-600); color: #fff; }
+.ct-btn-primary:hover { background: var(--ct-blue-700); }
+.ct-btn-ghost { background: transparent; color: var(--ct-blue-700); border-color: var(--ct-line); }
+.ct-btn-ghost:hover { background: var(--ct-sky-100); }
+.ct-btn-danger { background: transparent; color: var(--ct-red-600); border-color: #F5C2C0; }
+.ct-btn-danger:hover { background: #FDECEA; }
+.ct-btn-sm { padding: 6px 12px; font-size: 0.78rem; }
+.ct-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ct-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 1.5px solid var(--ct-line);
+  border-radius: 9px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--ct-ink-900);
+}
+.ct-input:focus { outline: none; border-color: var(--ct-blue-600); box-shadow: 0 0 0 3px rgba(14,122,184,0.12); }
+
+.ct-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ct-ink-700);
+  margin-bottom: 5px;
+}

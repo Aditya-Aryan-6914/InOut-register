@@ -5,19 +5,26 @@ Note: your existing bare "/admin" route (the public admin landing page,
 per your README) is untouched — it presumably lives in the `main`
 blueprint. Everything here sits one level deeper (/admin/dashboard,
 /admin/fields, ...) so there's no collision.
-
-These are intentionally thin for now — just enough to prove
-`role_required` works end-to-end. Swap the TODOs for the real
-drag-and-drop field builder / room+QR generation logic we planned
-when you're ready to build those out.
 """
-from flask import abort, flash, redirect, render_template, request, url_for
+import io
+import secrets
+
+import qrcode
+from flask import abort, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
 
 from . import admin_bp
 from ..decorators import role_required
 from ..extensions import db
-from ..models import JoinRequest, RequestStatusEnum, RoleEnum, User, UserFieldValue
+from ..models import (
+    CustomField, FieldTypeEnum, JoinRequest, RequestStatusEnum, Room,
+    RoleEnum, User, UserFieldValue,
+)
+from ..qr_utils import make_qr_payload
+
+OPTION_FIELD_TYPES = {FieldTypeEnum.DROPDOWN.value, FieldTypeEnum.CHECKBOX.value}
+MAX_ROOMS_PER_INSTITUTE = 500
 
 
 @admin_bp.route("/dashboard")
@@ -40,19 +47,232 @@ def dashboard():
 @admin_bp.route("/fields")
 @role_required(RoleEnum.ADMIN)
 def fields():
-    # TODO: drag-and-drop field builder (SortableJS field bank + canvas)
     institute = current_user.institute
-    return render_template("admin/fields.html", institute=institute,
-                            custom_fields=institute.custom_fields.all())
+    custom_fields = institute.custom_fields.order_by(CustomField.order).all()
+
+    # How many users have already answered each field — shown in the UI
+    # so an admin doesn't casually delete a field with real data behind it.
+    response_counts = {cf.id: cf.values.count() for cf in custom_fields}
+
+    return render_template(
+        "admin/fields.html",
+        institute=institute,
+        custom_fields=custom_fields,
+        response_counts=response_counts,
+        field_types=[t.value for t in FieldTypeEnum],
+    )
+
+
+class FieldValidationError(ValueError):
+    """Raised by _validate_field_payload; message is safe to show the admin directly."""
+
+
+@admin_bp.route("/fields/save", methods=["POST"])
+@role_required(RoleEnum.ADMIN)
+def save_fields():
+    """
+    Replaces the institute's entire field set with whatever the
+    drag-and-drop canvas currently holds. The frontend sends the full
+    ordered list on every save (not incremental add/remove calls) —
+    simpler to reason about and keeps the whole change atomic.
+    """
+    institute = current_user.institute
+    payload = request.get_json(silent=True)
+
+    if not payload or not isinstance(payload.get("fields"), list):
+        return jsonify({"error": "Invalid request."}), 400
+
+    try:
+        cleaned = _validate_field_payload(payload["fields"])
+    except FieldValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    # Fields that already belong to THIS institute — anything else
+    # submitted (e.g. a stale/foreign id) is treated as a brand-new
+    # field for this institute rather than touching someone else's row.
+    existing = {cf.id: cf for cf in institute.custom_fields}
+    kept_ids = set()
+
+    for f in cleaned:
+        cf = existing.get(f["id"]) if f["id"] else None
+        if cf is not None:
+            cf.label = f["label"]
+            cf.field_type = FieldTypeEnum(f["field_type"])
+            cf.is_required = f["is_required"]
+            cf.options = f["options"]
+            cf.order = f["order"]
+            kept_ids.add(cf.id)
+        else:
+            db.session.add(CustomField(
+                institute_id=institute.id,
+                label=f["label"],
+                field_type=FieldTypeEnum(f["field_type"]),
+                is_required=f["is_required"],
+                options=f["options"],
+                order=f["order"],
+            ))
+
+    for cf_id, cf in existing.items():
+        if cf_id not in kept_ids:
+            db.session.delete(cf)  # cascades to UserFieldValue rows for this field
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Two fields ended up with the same name. Please use unique labels."}), 400
+
+    return jsonify({"success": True})
+
+
+def _validate_field_payload(incoming: list) -> list:
+    """Returns the cleaned field list, or raises FieldValidationError."""
+    if len(incoming) > 50:
+        raise FieldValidationError("A form can have at most 50 fields.")
+
+    valid_types = {t.value for t in FieldTypeEnum}
+    seen_labels = set()
+    cleaned = []
+
+    for idx, f in enumerate(incoming):
+        label = str(f.get("label", "")).strip()
+        field_type = f.get("field_type")
+
+        if not label or len(label) > 100:
+            raise FieldValidationError(f"Field {idx + 1} needs a label under 100 characters.")
+        if field_type not in valid_types:
+            raise FieldValidationError(f"'{label}' has an invalid field type.")
+
+        label_key = label.lower()
+        if label_key in seen_labels:
+            raise FieldValidationError(f"Duplicate field label: '{label}'.")
+        seen_labels.add(label_key)
+
+        options = None
+        if field_type in OPTION_FIELD_TYPES:
+            raw_options = f.get("options") or []
+            options = [str(o).strip() for o in raw_options if str(o).strip()]
+            if not options:
+                raise FieldValidationError(f"'{label}' needs at least one option.")
+
+        field_id = f.get("id")
+        cleaned.append({
+            "id": int(field_id) if field_id else None,
+            "label": label,
+            "field_type": field_type,
+            "is_required": bool(f.get("is_required", True)),
+            "options": options,
+            "order": idx,
+        })
+
+    return cleaned
 
 
 @admin_bp.route("/rooms")
 @role_required(RoleEnum.ADMIN)
 def rooms():
-    # TODO: "how many rooms?" form + bulk QR generation
     institute = current_user.institute
-    return render_template("admin/rooms.html", institute=institute,
-                            rooms=institute.rooms.all())
+    room_list = institute.rooms.order_by(Room.created_at).all()
+    return render_template(
+        "admin/rooms.html",
+        institute=institute,
+        rooms=room_list,
+        max_rooms=MAX_ROOMS_PER_INSTITUTE,
+    )
+
+
+@admin_bp.route("/rooms/generate", methods=["POST"])
+@role_required(RoleEnum.ADMIN)
+def generate_rooms():
+    institute = current_user.institute
+
+    try:
+        count = int(request.form.get("count", "0"))
+    except ValueError:
+        count = 0
+
+    existing_count = institute.rooms.count()
+    if count < 1:
+        flash("Enter at least 1 room to generate.", "error")
+        return redirect(url_for("admin.rooms"))
+    if existing_count + count > MAX_ROOMS_PER_INSTITUTE:
+        flash(f"You can track at most {MAX_ROOMS_PER_INSTITUTE} rooms in total.", "error")
+        return redirect(url_for("admin.rooms"))
+
+    name_prefix = request.form.get("name_prefix", "Room").strip() or "Room"
+
+    for i in range(count):
+        db.session.add(Room(
+            institute_id=institute.id,
+            name=f"{name_prefix} {existing_count + i + 1}",
+            qr_token=secrets.token_urlsafe(12),
+        ))
+
+    db.session.commit()
+    flash(f"{count} room{'s' if count != 1 else ''} created, each with its own QR code.", "success")
+    return redirect(url_for("admin.rooms"))
+
+
+@admin_bp.route("/rooms/<int:room_id>/qr.png")
+@role_required(RoleEnum.ADMIN)
+def room_qr_image(room_id):
+    room = _get_own_room_or_404(room_id)
+    payload = make_qr_payload(room)
+
+    img = qrcode.make(payload)
+    buffer = io.BytesIO()
+    # qrcode's bundled type stub omits `format` from save() even though
+    # the real implementation (qrcode/image/pil.py) accepts and uses it —
+    # verified against the installed package source, not guessed.
+    img.save(buffer, format="PNG")  # type: ignore[reportCallIssue]
+    buffer.seek(0)
+    return send_file(buffer, mimetype="image/png")
+
+
+@admin_bp.route("/rooms/<int:room_id>/rename", methods=["POST"])
+@role_required(RoleEnum.ADMIN)
+def rename_room(room_id):
+    room = _get_own_room_or_404(room_id)
+    new_name = request.form.get("name", "").strip()
+
+    if not new_name:
+        flash("Room name can't be empty.", "error")
+        return redirect(url_for("admin.rooms"))
+
+    room.name = new_name
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(f"You already have a room named '{new_name}'.", "error")
+        return redirect(url_for("admin.rooms"))
+
+    flash("Room renamed.", "success")
+    return redirect(url_for("admin.rooms"))
+
+
+@admin_bp.route("/rooms/<int:room_id>/delete", methods=["POST"])
+@role_required(RoleEnum.ADMIN)
+def delete_room(room_id):
+    room = _get_own_room_or_404(room_id)
+    log_count = room.attendance_logs.count()
+
+    db.session.delete(room)
+    db.session.commit()
+
+    if log_count:
+        flash(f"Room deleted, along with {log_count} attendance record(s).", "info")
+    else:
+        flash("Room deleted.", "success")
+    return redirect(url_for("admin.rooms"))
+
+
+def _get_own_room_or_404(room_id: int) -> Room:
+    """Same guard as _get_own_join_request_or_404 — see its docstring."""
+    room = Room.query.get_or_404(room_id)
+    if room.institute_id != current_user.institute_id:
+        abort(404)
+    return room
 
 
 @admin_bp.route("/requests/<int:request_id>/approve", methods=["POST"])

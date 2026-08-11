@@ -1,0 +1,115 @@
+{#
+  admin/rooms.html
+  ------------------
+  Content-only template — same convention as fields.html / admin_signup.html.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+
+<div class="ct-admin-wrap">
+
+  <div class="ct-admin-header">
+    <div>
+      <p class="ct-admin-eyebrow">Checkpoints</p>
+      <h1>Rooms &amp; QR codes for {{ institute.name }}</h1>
+      <p class="ct-admin-sub">Each room gets its own QR code — print it and post it at the door.</p>
+    </div>
+    <nav class="ct-admin-nav">
+      <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('admin.fields') }}">Fields</a>
+      <a href="{{ url_for('admin.rooms') }}" class="active">Rooms</a>
+    </nav>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="ct-flash-list">
+        {% for category, message in messages %}
+          <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  {% if not rooms %}
+    <!-- First-run state: no rooms yet -->
+    <div class="ct-card ct-generate-card ct-generate-empty">
+      <p class="ct-admin-eyebrow">Get started</p>
+      <h2>How many rooms do you want to track?</h2>
+      <p class="ct-admin-sub" style="margin-bottom: 18px;">
+        This could be hostel rooms, classrooms, or apartment units — whatever
+        you want a QR checkpoint for. You can always add more later.
+      </p>
+      <form method="post" action="{{ url_for('admin.generate_rooms') }}" class="ct-generate-form">
+        <div class="ct-generate-field">
+          <label class="ct-label" for="count">Number of rooms</label>
+          <input class="ct-input" type="number" id="count" name="count" min="1" max="{{ max_rooms }}" value="10" required>
+        </div>
+        <div class="ct-generate-field">
+          <label class="ct-label" for="name_prefix">Name prefix <span class="ct-hint-inline">(optional)</span></label>
+          <input class="ct-input" type="text" id="name_prefix" name="name_prefix" placeholder="Room" value="Room">
+        </div>
+        <button type="submit" class="ct-btn ct-btn-primary">Generate rooms &amp; QR codes</button>
+      </form>
+    </div>
+  {% else %}
+    <!-- Rooms already exist: compact "add more" form + the grid -->
+    <div class="ct-card ct-generate-card">
+      <form method="post" action="{{ url_for('admin.generate_rooms') }}" class="ct-generate-form ct-generate-form-compact">
+        <div class="ct-generate-field">
+          <label class="ct-label" for="count">Add more rooms</label>
+          <input class="ct-input" type="number" id="count" name="count" min="1" max="{{ max_rooms }}" value="1" required>
+        </div>
+        <div class="ct-generate-field">
+          <label class="ct-label" for="name_prefix">Name prefix</label>
+          <input class="ct-input" type="text" id="name_prefix" name="name_prefix" placeholder="Room" value="Room">
+        </div>
+        <button type="submit" class="ct-btn ct-btn-primary">Generate</button>
+      </form>
+      <p class="ct-room-count-note">{{ rooms|length }} of {{ max_rooms }} rooms tracked</p>
+    </div>
+
+    <div class="ct-room-grid">
+      {% for room in rooms %}
+        <div class="ct-card ct-room-card">
+          <img class="ct-room-qr" src="{{ url_for('admin.room_qr_image', room_id=room.id) }}" alt="QR code for {{ room.name }}">
+
+          <form method="post" action="{{ url_for('admin.rename_room', room_id=room.id) }}" class="ct-room-rename-form">
+            <input class="ct-input ct-room-name-input" type="text" name="name" value="{{ room.name }}" maxlength="100">
+            <button type="submit" class="ct-btn ct-btn-ghost ct-btn-sm">Rename</button>
+          </form>
+
+          <div class="ct-room-actions">
+            <a class="ct-btn ct-btn-ghost ct-btn-sm" href="{{ url_for('admin.room_qr_image', room_id=room.id) }}" download="{{ room.name }}-qr.png">Download QR</a>
+            <form method="post" action="{{ url_for('admin.delete_room', room_id=room.id) }}"
+                  onsubmit="return confirm('Delete {{ room.name }}? This also removes its attendance history.');">
+              <button type="submit" class="ct-btn ct-btn-danger ct-btn-sm">Delete</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+</div>
+
+<style>
+  .ct-generate-card { padding: 22px; margin-bottom: 22px; }
+  .ct-generate-empty { padding: 32px; max-width: 560px; }
+  .ct-generate-form { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; }
+  .ct-generate-form-compact .ct-generate-field { max-width: 180px; }
+  .ct-generate-field { flex: 1; min-width: 140px; }
+  .ct-hint-inline { font-weight: 400; color: var(--ct-ink-500); text-transform: none; letter-spacing: 0; }
+  .ct-room-count-note { margin: 12px 0 0; font-size: 0.8rem; color: var(--ct-ink-500); }
+
+  .ct-room-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 18px;
+  }
+  .ct-room-card { padding: 16px; text-align: center; }
+  .ct-room-qr { width: 100%; max-width: 180px; height: auto; margin: 0 auto 12px; border: 1px solid var(--ct-line); border-radius: 8px; }
+  .ct-room-rename-form { display: flex; gap: 6px; margin-bottom: 10px; }
+  .ct-room-name-input { font-size: 0.85rem; padding: 7px 9px; }
+  .ct-room-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+</style>
