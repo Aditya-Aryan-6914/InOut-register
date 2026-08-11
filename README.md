@@ -1,15 +1,14 @@
 # InOut-register
 
-InOut-register is a small Flask application for tracking in/out register data. It uses SQLite for local storage and a simple web UI for the public and admin pages.
+InOut-register is a small Flask application for tracking in/out register data. It uses SQLite for local storage and a modular blueprint-based structure for public, auth, admin and user pages.
 
 ## Project Overview
 
-The application is a minimal Flask project with two routes:
+The application uses an application factory and Flask blueprints. Key entry points and features:
 
-- `/` for the main landing page
-- `/admin` for the admin page
-
-The current setup uses SQLite and does not require any external services or environment variables.
+- `run.py` — start the app using the project entry point
+- `CampusTrack/` — main application package (contains `auth`, `admin`, `main`, `user`, `superuser` blueprints)
+- SQLite used for local development; no external services required by default
 
 ## Prerequisites
 
@@ -19,27 +18,18 @@ The current setup uses SQLite and does not require any external services or envi
 
 ## Create the Virtual Environment
 
-Create a local virtual environment named `.venv` in the project root.
+Create a local virtual environment named `.venv` in the project root. Example (Linux/macOS):
 
-### Windows
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Windows (PowerShell):
 
 ```powershell
 py -m venv .venv
-.venv\Scripts\activate
-```
-
-### macOS
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### Linux
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+.venv\Scripts\Activate.ps1
 ```
 
 ## Install Dependencies
@@ -62,29 +52,30 @@ If you later add configuration, store local values in a `.env` file and keep it 
 With the virtual environment activated, start the app from the project root:
 
 ```bash
-python app.py
+python run.py
 ```
 
 The app will start on the default Flask development server, usually at `http://127.0.0.1:5000`.
 
 ## Create the Database
 
-This project uses SQLite. To create the database and tables from `app.py`, run:
+This project uses SQLite. To create the database and tables, open a Python shell from the project root after activating the virtualenv and run:
 
 ```bash
 python
 ```
 
-Then in the Python shell:
+Then inside the Python REPL:
 
 ```python
-from app import app, db
-
+from CampusTrack import create_app
+from CampusTrack.extensions import db
+app = create_app()
 with app.app_context():
-	db.create_all()
+    db.create_all()
 ```
 
-This must run inside `app.app_context()` because SQLAlchemy needs an active Flask application context to access the app configuration.
+This must run inside `app.app_context()` because SQLAlchemy needs an active Flask application context to access app configuration.
 
 ## Deactivate the Virtual Environment
 
@@ -98,44 +89,36 @@ deactivate
 
 ```text
 .
-INOUT-REGISTER/
-├── .venv/                   # Virtual environment folder (always local, never committed)
+InOut-register/
+├── .venv/                   # Virtual environment folder (local, not committed)
 ├── instance/                # Instance folder for secret keys, local SQLite DBs (git-ignored)
-│   └── config.py            # Local sensitive configuration overrides
 ├── CampusTrack/             # Main application package
 │   ├── __init__.py          # Application Factory: defines create_app()
 │   ├── extensions.py        # Shared extension instances (e.g., SQLAlchemy db = SQLAlchemy())
 │   ├── models.py            # Shared database models
-│   ├── static/              # Global static files (shared across blueprints)
-|	|	├── img/
-│   │   ├── css/
-│   │   └── js/
-│   ├── templates/           # Global templates
-│   │   ├── base.html        # Main template layout
-│   │   └── errors/          # Custom error pages (404, 500)
-│   ├── main/                # Blueprint 1: Core site logic
-│   │   ├── __init__.py      # Defines main_bp = Blueprint('main', __name__)
-│   │   └── routes.py        # Views using @main_bp.route()
-│   └── auth/                # Blueprint 2: Auth logic (Example of modular scaling)
-│       ├── __init__.py      # Defines auth_bp = Blueprint('auth', __name__)
-│       └── routes.py        # Views using @auth_bp.route()
-├── .gitignore               # Ignores .venv/, instance/, and __pycache__/
-├── readme.md                # Project documentation and setup instructions
-├── requirements.txt         # List of Python dependencies
-└── run.py                   # Root entry point to launch the application
-l
+│   ├── auth/                # Auth blueprint (auth_bp)
+│   │   ├── __init__.py
+│   │   └── routes.py
+│   ├── main/                # Main site blueprint
+│   ├── admin/               # Admin blueprint
+│   ├── user/                # User blueprint
+│   └── superuser/           # Superuser blueprint
+├── .gitignore
+├── README.md
+├── requirements.txt
+└── run.py
 ```
-
+##System Architecture
+<img width="1151" height="816" alt="Untitled Diagram drawio" src="https://github.com/user-attachments/assets/6ea1c3c0-0043-4af2-8651-34325a0fefe9" />
 
 ## Troubleshooting
 
 - If the app cannot import Flask or Flask-SQLAlchemy, make sure the virtual environment is activated before running it.
-- If `python` still points to a global interpreter, confirm the shell prompt shows `.venv` and run `which python` or `where python` to verify the active interpreter.
+- If `python` still points to a global interpreter, confirm the shell prompt shows `.venv` and run `which python` to verify the active interpreter.
 - If the port is already in use, stop the other process or run Flask on a different port.
-- If `db.create_all()` fails, make sure you imported both `app` and `db` from `app.py` and wrapped the call in `with app.app_context():`.
-- If SQLite data becomes corrupted during local testing, delete the local `inout.db` file and run the database creation step again.
+- If `db.create_all()` fails, ensure you created an app instance via `create_app()` and run `db.create_all()` inside `with app.app_context():` as shown above.
 
 ## Notes
 
 - The database is local SQLite, so no separate database server is required.
-- The generated `.venv` directory and local database files are ignored by Git.
+- The `.venv` directory and local database files are ignored by Git by default.

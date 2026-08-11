@@ -1,26 +1,5 @@
-{#
-  auth/admin_signup.html
-  -----------------------
-  Content-only template — no <html>/<head>/<body>, no site header or
-  footer. Drop this into your layout however you're structuring pages
-  right now:
-
-    - If you have a base template with a content block:
-        {% extends "base.html" %}
-        {% block content %}
-          ... (everything below, minus this comment) ...
-        {% endblock %}
-
-    - If you're not using template inheritance yet, this file is
-      already renderable as-is via render_template() — Jinja doesn't
-      require a full HTML document, so it'll just render this fragment.
-
-  The <style> block below is scoped to class names prefixed `ct-` so it
-  won't collide with any global stylesheet you add later (e.g. the
-  homepage CSS from earlier) — feel free to delete it once you have a
-  shared stylesheet and move these rules there instead.
-#}
-
+{% extends "base.html" %}
+{% block content %}
 <style>
   .ct-auth-wrap {
     max-width: 560px;
@@ -251,3 +230,4 @@
     </p>
   </div>
 </div>
+{% endblock %}
