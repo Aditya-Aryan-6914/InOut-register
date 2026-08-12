@@ -1,0 +1,97 @@
+/* =========================================================
+   CampusTrack — Shared Auth/Registration Page Styles
+   Same light-blue + white theme as admin.css, sized for
+   public-facing single-column forms (login, signup, register).
+   ========================================================= */
+
+:root {
+  --ct-white: #ffffff;
+  --ct-sky-50: #F3F9FD;
+  --ct-sky-100: #E4F2FB;
+  --ct-blue-600: #0E7AB8;
+  --ct-blue-700: #0B5E8F;
+  --ct-ink-900: #0E2438;
+  --ct-ink-700: #24455C;
+  --ct-ink-500: #5C6B7A;
+  --ct-line: #CFE6F6;
+  --ct-amber-500: #F2A93B;
+  --ct-amber-700: #B97F1E;
+  --ct-red-600: #B3261E;
+  --ct-green-600: #17A673;
+}
+
+.ct-auth-wrap {
+  max-width: 620px;
+  margin: 48px auto;
+  padding: 0 20px;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  color: var(--ct-ink-900);
+}
+.ct-auth-card {
+  background: var(--ct-white);
+  border: 1px solid var(--ct-line);
+  border-radius: 16px;
+  padding: 32px 32px 28px;
+  box-shadow: 0 8px 24px rgba(14, 78, 118, 0.08);
+}
+.ct-auth-eyebrow {
+  font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ct-blue-600); margin: 0 0 6px;
+}
+.ct-auth-card h1 { font-size: 1.5rem; margin: 0 0 4px; color: var(--ct-ink-900); }
+.ct-auth-card h2 { font-size: 1.15rem; margin: 0 0 4px; color: var(--ct-ink-900); }
+.ct-auth-sub { color: var(--ct-ink-500); font-size: 0.92rem; margin: 0 0 24px; }
+
+.ct-flash-list { list-style: none; margin: 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ct-flash { padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; }
+.ct-flash-error { background: #FDECEA; color: var(--ct-red-600); border: 1px solid #F5C2C0; }
+.ct-flash-success { background: #E7F6EE; color: var(--ct-green-600); border: 1px solid #BEE8D2; }
+.ct-flash-info { background: var(--ct-sky-100); color: var(--ct-blue-700); border: 1px solid var(--ct-line); }
+
+.ct-fieldset { border: none; padding: 0; margin: 0 0 22px; }
+.ct-fieldset legend {
+  font-size: 0.82rem; font-weight: 700; color: var(--ct-ink-900);
+  text-transform: uppercase; letter-spacing: 0.04em; padding: 0 0 10px;
+}
+.ct-field { margin-bottom: 14px; }
+.ct-field label { display: block; font-size: 0.84rem; font-weight: 600; color: var(--ct-ink-700); margin-bottom: 5px; }
+.ct-field .ct-hint { font-size: 0.76rem; color: var(--ct-ink-500); font-weight: 400; margin-left: 6px; }
+.ct-field input, .ct-field select, .ct-field textarea {
+  width: 100%; box-sizing: border-box; padding: 10px 12px;
+  border: 1.5px solid var(--ct-line); border-radius: 9px;
+  font-size: 0.94rem; font-family: inherit; color: var(--ct-ink-900); background: #fff;
+}
+.ct-field input:focus, .ct-field select:focus, .ct-field textarea:focus {
+  outline: none; border-color: var(--ct-blue-600); box-shadow: 0 0 0 3px rgba(14, 122, 184, 0.12);
+}
+.ct-row-2 { display: flex; gap: 14px; }
+.ct-row-2 > .ct-field { flex: 1; min-width: 0; }
+
+.ct-checkbox-group { display: flex; flex-direction: column; gap: 8px; }
+.ct-checkbox-option { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--ct-ink-700); }
+.ct-checkbox-option input { width: auto; }
+
+.ct-submit {
+  width: 100%; background: var(--ct-blue-600); color: #fff; border: none;
+  border-radius: 999px; padding: 13px 20px; font-size: 0.98rem; font-weight: 600;
+  font-family: inherit; cursor: pointer;
+}
+.ct-submit:hover { background: var(--ct-blue-700); }
+.ct-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ct-btn-link {
+  background: none; border: none; color: var(--ct-blue-700); font-weight: 600;
+  font-size: 0.86rem; cursor: pointer; padding: 0; font-family: inherit;
+}
+.ct-btn-link:hover { text-decoration: underline; }
+
+.ct-auth-footer { text-align: center; margin-top: 18px; font-size: 0.86rem; color: var(--ct-ink-500); }
+.ct-auth-footer a { color: var(--ct-blue-600); font-weight: 600; text-decoration: none; }
+.ct-auth-footer a:hover { text-decoration: underline; }
+
+.ct-step-indicator {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 22px;
+  font-size: 0.78rem; font-weight: 600; color: var(--ct-ink-500);
+}
+.ct-step-indicator .ct-step-active { color: var(--ct-blue-600); }
+.ct-step-indicator .ct-step-sep { color: var(--ct-line); }

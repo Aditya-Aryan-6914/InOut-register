@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  user/register.html
+  --------------------
+  Content-only template — no <html>/<head>/<body>, no site header or
+  footer, same convention as the admin templates.
+
+  Two-step flow:
+    Step 1 (always server-rendered): pick institute, enter institute password.
+    Step 2: the institute's custom fields, rendered one of two ways —
+      - JS-driven: after step 1 passes via AJAX, JS builds step 2 from
+        the JSON response (see static/js/user_register.js).
+      - Server-rendered: if this page is being re-shown after a FAILED
+        submission (`reopen_institute` is set), step 2 is rendered
+        directly from the institute's fields so the user doesn't lose
+        their place and re-do step 1.
+    Either path posts to the same submit_registration route with the
+    same `field_{id}` naming, so the backend doesn't care which path
+    produced the request.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+
+{% macro custom_field_input(field, form_values={}) %}
+  <div class="ct-field">
+    <label for="field_{{ field.id }}">
+      {{ field.label }}{% if not field.is_required %} <span class="ct-hint">optional</span>{% endif %}
+    </label>
+
+    {% if field.field_type.value == 'dropdown' %}
+      <select id="field_{{ field.id }}" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}>
+        <option value="">Select…</option>
+        {% for opt in (field.options or []) %}
+          <option value="{{ opt }}" {% if form_values.get(field.id|string) == opt %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+
+    {% elif field.field_type.value == 'checkbox' %}
+      <div class="ct-checkbox-group">
+        {% for opt in (field.options or []) %}
+          <label class="ct-checkbox-option">
+            <input type="checkbox" name="field_{{ field.id }}" value="{{ opt }}">
+            {{ opt }}
+          </label>
+        {% endfor %}
+      </div>
+
+    {% elif field.field_type.value == 'file' %}
+      <input type="file" id="field_{{ field.id }}" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}>
+
+    {% elif field.field_type.value == 'date' %}
+      <input type="date" id="field_{{ field.id }}" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}>
+
+    {% elif field.field_type.value == 'number' %}
+      <input type="number" id="field_{{ field.id }}" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}>
+
+    {% elif field.field_type.value == 'email' %}
+      <input type="email" id="field_{{ field.id }}" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}>
+
+    {% elif field.field_type.value == 'phone' %}
+      <input type="tel" id="field_{{ field.id }}" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}>
+
+    {% else %}
+      <input type="text" id="field_{{ field.id }}" name="field_{{ field.id }}" {% if field.is_required %}required{% endif %}>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+<div class="ct-auth-wrap">
+  <div class="ct-auth-card">
+    <p class="ct-auth-eyebrow">Join CampusTrack</p>
+    <h1>Register</h1>
+    <p class="ct-auth-sub">Find your institute, verify you belong there, then fill in your details.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="ct-flash-list">
+          {% for category, message in messages %}
+            <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <!-- ============ STEP 1 ============ -->
+    <div id="step1" {% if reopen_institute %}hidden{% endif %}>
+      <div class="ct-step-indicator">
+        <span class="ct-step-active">1. Find your institute</span>
+        <span class="ct-step-sep">→</span>
+        <span>2. Your details</span>
+      </div>
+
+      <div class="ct-field">
+        <label for="institute_select">Institute</label>
+        <select id="institute_select">
+          <option value="">Select your institute…</option>
+          {% for inst in institutes %}
+            <option value="{{ inst.id }}">{{ inst.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="ct-field">
+        <label for="institute_password_input">Institute password</label>
+        <input type="password" id="institute_password_input" placeholder="Given to you by your admin">
+      </div>
+
+      <div id="step1Error" class="ct-flash ct-flash-error" style="display:none;"></div>
+
+      <button type="button" id="continueBtn" class="ct-submit">Continue</button>
+    </div>
+
+    <!-- ============ STEP 2 ============ -->
+    <div id="step2" {% if not reopen_institute %}hidden{% endif %}>
+      <div class="ct-step-indicator">
+        <button type="button" class="ct-btn-link" id="backToStep1">← Change institute</button>
+        <span class="ct-step-sep">|</span>
+        <span class="ct-step-active" id="step2InstituteLabel">
+          {% if reopen_institute %}{{ reopen_institute.name }}{% endif %}
+        </span>
+      </div>
+
+      <form method="post" action="{{ url_for('user.submit_registration') }}" enctype="multipart/form-data" novalidate>
+        <input type="hidden" id="institute_id_input" name="institute_id" value="{{ reopen_institute.id if reopen_institute else '' }}">
+        <input type="hidden" id="institute_password_hidden" name="institute_password" value="">
+
+        <fieldset class="ct-fieldset">
+          <legend>Your details</legend>
+
+          <div class="ct-field">
+            <label for="name">Full name</label>
+            <input type="text" id="name" name="name" value="{{ form.name if form else '' }}" required minlength="2">
+          </div>
+
+          <div class="ct-row-2">
+            <div class="ct-field">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" value="{{ form.email if form else '' }}" required>
+            </div>
+            <div class="ct-field">
+              <label for="phone">Phone <span class="ct-hint">optional</span></label>
+              <input type="tel" id="phone" name="phone" value="{{ form.phone if form else '' }}">
+            </div>
+          </div>
+
+          <div class="ct-row-2">
+            <div class="ct-field">
+              <label for="password">Password</label>
+              <input type="password" id="password" name="password" required minlength="8">
+            </div>
+            <div class="ct-field">
+              <label for="password_confirm">Confirm</label>
+              <input type="password" id="password_confirm" name="password_confirm" required minlength="8">
+            </div>
+          </div>
+
+          <div class="ct-field">
+            <label for="photo">Profile photo</label>
+            <input type="file" id="photo" name="photo" accept="image/png,image/jpeg" required>
+          </div>
+        </fieldset>
+
+        <fieldset class="ct-fieldset" id="dynamicFieldset" {% if not institute_fields %}hidden{% endif %}>
+          <legend id="dynamicFieldsetLegend">
+            {% if reopen_institute %}{{ reopen_institute.name }}{% endif %} also asks for
+          </legend>
+          <div id="dynamicFields">
+            {% if institute_fields %}
+              {% for field in institute_fields %}
+                {{ custom_field_input(field) }}
+              {% endfor %}
+            {% endif %}
+          </div>
+        </fieldset>
+
+        <button type="submit" class="ct-submit">Submit registration</button>
+      </form>
+    </div>
+
+    <p class="ct-auth-footer">
+      Already have an account? <a href="{{ url_for('auth.user_login') }}">Log in</a>
+    </p>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/user_register.js') }}"></script>
+{% endblock %}
