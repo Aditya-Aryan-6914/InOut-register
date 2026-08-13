@@ -184,6 +184,51 @@ class Institute(BaseModel, TimestampMixin):
     def pending_request_count(self) -> int:
         return self.join_requests.filter_by(status=RequestStatusEnum.PENDING).count()
 
+    @property
+    def currently_in_count(self) -> int:
+        """
+        Users belonging to this institute whose most recent AttendanceLog
+        event (across any room) was a check-in. Same "latest event per
+        user" pattern as Room.currently_in_count, just scoped by
+        institute_id instead of room_id — see that property's docstring
+        for the scaling note.
+        """
+        sub = (
+            db.session.query(
+                AttendanceLog.user_id,
+                func.max(AttendanceLog.timestamp).label("latest"),
+            )
+            .filter(AttendanceLog.institute_id == self.id)
+            .group_by(AttendanceLog.user_id)
+            .subquery()
+        )
+        return (
+            db.session.query(AttendanceLog)
+            .join(
+                sub,
+                and_(
+                    AttendanceLog.user_id == sub.c.user_id,
+                    AttendanceLog.timestamp == sub.c.latest,
+                ),
+            )
+            .filter(
+                AttendanceLog.institute_id == self.id,
+                AttendanceLog.event_type == EventTypeEnum.CHECK_IN,
+            )
+            .count()
+        )
+
+    @property
+    def today_checkin_count(self) -> int:
+        """Check-ins recorded since midnight UTC. Swap in institute-local
+        time here once timezone-per-institute is worth the complexity."""
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        return AttendanceLog.query.filter(
+            AttendanceLog.institute_id == self.id,
+            AttendanceLog.event_type == EventTypeEnum.CHECK_IN,
+            AttendanceLog.timestamp >= today_start,
+        ).count()
+
     def __repr__(self):
         return f"<Institute {self.id} {self.name!r}>"
 
@@ -456,6 +501,16 @@ class Room(BaseModel, TimestampMixin):
             )
             .count()
         )
+
+    @property
+    def last_checkin_at(self):
+        """Timestamp of the most recent check-in at this room, or None if it's never been used."""
+        log = (
+            self.attendance_logs.filter_by(event_type=EventTypeEnum.CHECK_IN)
+            .order_by(AttendanceLog.timestamp.desc())
+            .first()
+        )
+        return log.timestamp if log else None
 
     def __repr__(self):
         return f"<Room {self.id} {self.name!r}>"

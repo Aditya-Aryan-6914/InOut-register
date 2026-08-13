@@ -110,7 +110,7 @@ InOut-register/
 ```
 ## System Architecture
 
-<img width="1151" height="816" alt="Untitled Diagram drawio" src="/workspaces/InOut-register/CampusTrack/static/img/sa.png" />
+<img width="1151" height="816" alt="Untitled Diagram drawio" src="https://raw.githubusercontent.com/Aditya-Aryan-6914/InOut-register/refs/heads/main/CampusTrack/static/img/sa.png" />
 
 ## Troubleshooting
 

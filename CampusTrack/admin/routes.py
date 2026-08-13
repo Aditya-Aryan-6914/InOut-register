@@ -31,17 +31,55 @@ MAX_ROOMS_PER_INSTITUTE = 500
 @role_required(RoleEnum.ADMIN)
 def dashboard():
     institute = current_user.institute
-    pending_requests = institute.join_requests.filter_by(
-        status=RequestStatusEnum.PENDING
-    ).all()
+    custom_fields = institute.custom_fields.order_by(CustomField.order).all()
+
+    pending_requests = (
+        institute.join_requests.filter_by(status=RequestStatusEnum.PENDING)
+        .order_by(JoinRequest.created_at.desc())
+        .all()
+    )
 
     return render_template(
         "admin/dashboard.html",
         institute=institute,
         active_users=institute.active_user_count,
+        currently_in=institute.currently_in_count,
+        today_checkins=institute.today_checkin_count,
+        rooms=institute.rooms.order_by(Room.name).all(),
+        custom_fields=custom_fields,
         pending_requests=pending_requests,
-        rooms=institute.rooms.all(),
     )
+
+
+@admin_bp.route("/dashboard/live-counts")
+@role_required(RoleEnum.ADMIN)
+def live_counts():
+    """
+    Polled by the dashboard every ~12s (see static/js/admin_dashboard.js)
+    to refresh the stat cards and per-room table without a full page
+    reload. Scoped to current_user.institute the same way every other
+    admin route is — an admin can only ever see their own institute's
+    numbers here.
+    """
+    institute = current_user.institute
+    active_users = institute.active_user_count
+    currently_in = institute.currently_in_count
+
+    return jsonify({
+        "active_users": active_users,
+        "currently_in": currently_in,
+        "currently_out": active_users - currently_in,
+        "today_checkins": institute.today_checkin_count,
+        "pending_count": institute.pending_request_count,
+        "rooms": [
+            {
+                "id": room.id,
+                "currently_in": room.currently_in_count,
+                "last_checkin_at": room.last_checkin_at.isoformat() if room.last_checkin_at else None,
+            }
+            for room in institute.rooms.all()
+        ],
+    })
 
 
 @admin_bp.route("/fields")

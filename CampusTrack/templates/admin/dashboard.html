@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  admin/dashboard.html
+  ----------------------
+  Content-only template — no <html>/<head>/<body>, no site header or
+  footer, same convention as fields.html / rooms.html / admin_signup.html.
+
+  IF YOU ADD TEMPLATE INHERITANCE LATER: wrap everything below in
+    {% extends "base.html" %}
+    {% block content %}
+      ... (everything from <link rel="stylesheet"...> down to the
+           closing </script> tag at the bottom) ...
+    {% endblock %}
+  and delete this comment block. Nothing else in this file needs to
+  change — it doesn't assume any particular base layout right now.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+
+<div class="ct-admin-wrap">
+
+  <div class="ct-admin-header">
+    <div>
+      <p class="ct-admin-eyebrow">Dashboard</p>
+      <h1>{{ institute.name }}</h1>
+      <p class="ct-admin-sub">Live occupancy and pending sign-ups, updated automatically.</p>
+    </div>
+    <nav class="ct-admin-nav">
+      <a href="{{ url_for('admin.dashboard') }}" class="active">Dashboard</a>
+      <a href="{{ url_for('admin.fields') }}">Fields</a>
+      <a href="{{ url_for('admin.rooms') }}">Rooms</a>
+    </nav>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="ct-flash-list">
+        {% for category, message in messages %}
+          <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <!-- ============ STAT CARDS ============ -->
+  <div class="ct-stat-grid">
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Registered users</span>
+      <span class="ct-stat-value" id="statActiveUsers">{{ active_users }}</span>
+    </div>
+    <div class="ct-card ct-stat-card ct-stat-in">
+      <span class="ct-stat-label">Currently in</span>
+      <span class="ct-stat-value" id="statCurrentlyIn">{{ currently_in }}</span>
+    </div>
+    <div class="ct-card ct-stat-card ct-stat-out">
+      <span class="ct-stat-label">Currently out</span>
+      <span class="ct-stat-value" id="statCurrentlyOut">{{ active_users - currently_in }}</span>
+    </div>
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Check-ins today</span>
+      <span class="ct-stat-value" id="statTodayCheckins">{{ today_checkins }}</span>
+    </div>
+  </div>
+  <p class="ct-live-note"><span class="ct-live-dot"></span> Updates automatically every few seconds</p>
+
+  <!-- ============ ROOM-WISE BREAKDOWN ============ -->
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head">
+      <h2>Room-wise occupancy</h2>
+      <a href="{{ url_for('admin.rooms') }}" class="ct-btn ct-btn-ghost ct-btn-sm">Manage rooms</a>
+    </div>
+
+    {% if rooms %}
+      <table class="ct-table" id="roomTable">
+        <thead>
+          <tr><th>Room</th><th>Currently in</th><th>Last check-in</th></tr>
+        </thead>
+        <tbody>
+          {% for room in rooms %}
+            <tr data-room-id="{{ room.id }}">
+              <td>{{ room.name }}</td>
+              <td class="ct-room-in-cell">{{ room.currently_in_count }}</td>
+              <td class="ct-room-last-cell muted">
+                {{ room.last_checkin_at.strftime('%b %d, %I:%M %p') if room.last_checkin_at else '—' }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="ct-empty-note">
+        No rooms set up yet. <a href="{{ url_for('admin.rooms') }}">Generate your first batch of rooms &amp; QR codes</a>.
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- ============ PENDING REQUESTS ============ -->
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head">
+      <h2>Pending requests</h2>
+      <span class="ct-pending-badge">{{ pending_requests|length }} waiting</span>
+    </div>
+
+    {% if pending_requests %}
+      <div class="ct-table-scroll">
+        <table class="ct-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              {% for field in custom_fields %}
+                <th>{{ field.label }}</th>
+              {% endfor %}
+              <th>Requested</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for jr in pending_requests %}
+              <tr>
+                <td>{{ jr.name }}</td>
+                <td class="muted">{{ jr.email }}</td>
+                {% for field in custom_fields %}
+                  <td>{{ jr.field_responses.get(field.id|string, '—') if jr.field_responses else '—' }}</td>
+                {% endfor %}
+                <td class="muted">{{ jr.created_at.strftime('%b %d, %I:%M %p') }}</td>
+                <td class="ct-request-actions">
+                  <form method="post" action="{{ url_for('admin.approve_request', request_id=jr.id) }}"
+                        onsubmit="return confirm('Approve {{ jr.name }}? They will be able to log in immediately.');">
+                    <button type="submit" class="ct-btn ct-btn-primary ct-btn-sm">Approve</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.reject_request', request_id=jr.id) }}"
+                        class="ct-reject-form">
+                    <input type="hidden" name="reason" value="">
+                    <button type="submit" class="ct-btn ct-btn-danger ct-btn-sm">Reject</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ct-empty-note">No pending requests right now — you're all caught up.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+  .ct-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .ct-stat-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+  .ct-stat-label { font-size: 0.8rem; color: var(--ct-ink-500); font-weight: 600; }
+  .ct-stat-value { font-size: 1.9rem; font-weight: 700; color: var(--ct-ink-900); font-variant-numeric: tabular-nums; }
+  .ct-stat-in .ct-stat-value { color: var(--ct-green-600); }
+  .ct-stat-out .ct-stat-value { color: var(--ct-amber-700); }
+
+  .ct-live-note {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.78rem; color: var(--ct-ink-500); margin: 10px 0 28px;
+  }
+  .ct-live-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--ct-green-600);
+    animation: ct-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes ct-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .ct-section-card { padding: 22px; margin-bottom: 22px; }
+  .ct-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .ct-section-head h2 { font-size: 1.05rem; margin: 0; }
+
+  .ct-pending-badge {
+    font-size: 0.76rem; font-weight: 700; color: var(--ct-amber-700);
+    background: #FFF3DF; padding: 4px 11px; border-radius: 999px;
+  }
+
+  .ct-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .ct-table th {
+    text-align: left; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--ct-ink-500); font-weight: 700; padding: 8px 12px; border-bottom: 1px solid var(--ct-line);
+    white-space: nowrap;
+  }
+  .ct-table td { padding: 10px 12px; border-bottom: 1px solid var(--ct-sky-100); color: var(--ct-ink-900); }
+  .ct-table tr:last-child td { border-bottom: none; }
+  .ct-table .muted { color: var(--ct-ink-500); }
+  .ct-table-scroll { overflow-x: auto; }
+
+  .ct-request-actions { display: flex; gap: 8px; white-space: nowrap; }
+  .ct-request-actions form { display: inline; }
+
+  .ct-empty-note { color: var(--ct-ink-500); font-size: 0.9rem; padding: 10px 0; }
+  .ct-empty-note a { color: var(--ct-blue-600); font-weight: 600; }
+
+  @media (max-width: 900px) {
+    .ct-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<script src="{{ url_for('static', filename='js/admin_dashboard.js') }}"></script>
+{% endblock %}
