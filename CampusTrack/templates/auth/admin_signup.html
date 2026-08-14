@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .ct-auth-wrap {
+    max-width: 560px;
+    margin: 48px auto;
+    padding: 0 20px;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: #17233A;
+  }
+  .ct-auth-card {
+    background: #ffffff;
+    border: 1px solid #CFE6F6;
+    border-radius: 16px;
+    padding: 32px 32px 28px;
+    box-shadow: 0 8px 24px rgba(14, 78, 118, 0.08);
+  }
+  .ct-auth-eyebrow {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #0E7AB8;
+    margin: 0 0 6px;
+  }
+  .ct-auth-card h1 {
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    color: #0E2438;
+  }
+  .ct-auth-sub {
+    color: #5C6B7A;
+    font-size: 0.92rem;
+    margin: 0 0 24px;
+  }
+  .ct-flash-list {
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .ct-flash {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+  }
+  .ct-flash-error { background: #FDECEA; color: #B3261E; border: 1px solid #F5C2C0; }
+  .ct-flash-success { background: #E7F6EE; color: #17A673; border: 1px solid #BEE8D2; }
+  .ct-flash-info { background: #E4F2FB; color: #0B5E8F; border: 1px solid #CFE6F6; }
+
+  .ct-fieldset {
+    border: none;
+    padding: 0;
+    margin: 0 0 22px;
+  }
+  .ct-fieldset legend {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0E2438;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0 0 10px;
+  }
+  .ct-field {
+    margin-bottom: 14px;
+  }
+  .ct-field label {
+    display: block;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #24455C;
+    margin-bottom: 5px;
+  }
+  .ct-field .ct-hint {
+    font-size: 0.76rem;
+    color: #5C6B7A;
+    font-weight: 400;
+    margin-left: 6px;
+  }
+  .ct-field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1.5px solid #CFE6F6;
+    border-radius: 9px;
+    font-size: 0.94rem;
+    font-family: inherit;
+    color: #17233A;
+  }
+  .ct-field input:focus {
+    outline: none;
+    border-color: #0E7AB8;
+    box-shadow: 0 0 0 3px rgba(14, 122, 184, 0.12);
+  }
+  .ct-row-2 {
+    display: flex;
+    gap: 14px;
+  }
+  .ct-row-2 > .ct-field { flex: 1; min-width: 0; }
+
+  .ct-duplicate-warning {
+    background: #FFF3DF;
+    border: 1px solid #F2A93B;
+    color: #7A4E0E;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 18px;
+  }
+
+  .ct-submit {
+    width: 100%;
+    background: #0E7AB8;
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 20px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .ct-submit:hover { background: #0B5E8F; }
+
+  .ct-auth-footer {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 0.86rem;
+    color: #5C6B7A;
+  }
+  .ct-auth-footer a { color: #0E7AB8; font-weight: 600; text-decoration: none; }
+  .ct-auth-footer a:hover { text-decoration: underline; }
+</style>
+
+<div class="ct-auth-wrap">
+  <div class="ct-auth-card">
+    <p class="ct-auth-eyebrow">Get started</p>
+    <h1>Create your institute</h1>
+    <p class="ct-auth-sub">
+      Set up your hostel, college or apartment complex on CampusTrack.
+      This creates both your institute and your own admin login.
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="ct-flash-list">
+          {% for category, message in messages %}
+            <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% if duplicate_institute %}
+      <div class="ct-duplicate-warning">
+        Heads up — an institute named <strong>{{ duplicate_institute.name }}</strong> already exists.
+        If that's yours, <a href="{{ url_for('auth.admin_login') }}">log in</a> instead of creating a duplicate.
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+
+      <fieldset class="ct-fieldset">
+        <legend>Your institute</legend>
+
+        <div class="ct-field">
+          <label for="institute_name">Institute name</label>
+          <input type="text" id="institute_name" name="institute_name"
+                 value="{{ form.institute_name }}" required minlength="2"
+                 placeholder="e.g. KIT's College of Engineering">
+        </div>
+
+        <div class="ct-field">
+          <label for="institute_address">Address <span class="ct-hint">(optional)</span></label>
+          <input type="text" id="institute_address" name="institute_address"
+                 value="{{ form.institute_address }}" placeholder="City, state">
+        </div>
+
+        <div class="ct-row-2">
+          <div class="ct-field">
+            <label for="institute_password">Institute password
+              <span class="ct-hint">shared with your users</span></label>
+            <input type="password" id="institute_password" name="institute_password"
+                   required minlength="6">
+          </div>
+          <div class="ct-field">
+            <label for="institute_password_confirm">Confirm</label>
+            <input type="password" id="institute_password_confirm" name="institute_password_confirm"
+                   required minlength="6">
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="ct-fieldset">
+        <legend>Your admin account</legend>
+
+        <div class="ct-field">
+          <label for="admin_name">Your name</label>
+          <input type="text" id="admin_name" name="admin_name"
+                 value="{{ form.admin_name }}" required minlength="2">
+        </div>
+
+        <div class="ct-field">
+          <label for="admin_email">Email</label>
+          <input type="email" id="admin_email" name="admin_email"
+                 value="{{ form.admin_email }}" required>
+        </div>
+
+        <div class="ct-row-2">
+          <div class="ct-field">
+            <label for="admin_password">Password</label>
+            <input type="password" id="admin_password" name="admin_password"
+                   required minlength="8">
+          </div>
+          <div class="ct-field">
+            <label for="admin_password_confirm">Confirm</label>
+            <input type="password" id="admin_password_confirm" name="admin_password_confirm"
+                   required minlength="8">
+          </div>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="ct-submit">Create institute &amp; continue</button>
+    </form>
+
+    <p class="ct-auth-footer">
+      Already set up? <a href="{{ url_for('auth.admin_login') }}">Log in to your institute</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

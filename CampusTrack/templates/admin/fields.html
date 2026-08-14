@@ -1,0 +1,213 @@
+{#
+  admin/fields.html
+  -------------------
+  Content-only template — no <html>/<head>/<body>, no site header or
+  footer, same as admin_signup.html. Wrap in your layout's
+  {% block content %} if/when you add one.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+
+<div class="ct-admin-wrap">
+
+  <div class="ct-admin-header">
+    <div>
+      <p class="ct-admin-eyebrow">Field Builder</p>
+      <h1>Registration fields for {{ institute.name }}</h1>
+      <p class="ct-admin-sub">Drag fields from the bank on the left into your form. Users fill these in when they register.</p>
+    </div>
+    <nav class="ct-admin-nav">
+      <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('admin.fields') }}" class="active">Fields</a>
+      <a href="{{ url_for('admin.rooms') }}">Rooms</a>
+    </nav>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="ct-flash-list">
+        {% for category, message in messages %}
+          <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <div id="saveErrorBanner" class="ct-flash ct-flash-error" style="display:none; margin-bottom: 18px;"></div>
+
+  <div class="ct-builder-grid">
+
+    <!-- ============ FIELD BANK ============ -->
+    <aside class="ct-card ct-bank">
+      <h2 class="ct-bank-title">Field bank</h2>
+      <p class="ct-bank-hint">Drag a chip into the form on the right.</p>
+
+      <p class="ct-bank-group-label">Common fields</p>
+      <div id="fieldBank" class="ct-bank-list">
+        <div class="ct-bank-chip" data-label="Full Name" data-type="text"><span>Full Name</span><em>Text</em></div>
+        <div class="ct-bank-chip" data-label="Roll Number" data-type="text"><span>Roll Number</span><em>Text</em></div>
+        <div class="ct-bank-chip" data-label="Room Number" data-type="text"><span>Room Number</span><em>Text</em></div>
+        <div class="ct-bank-chip" data-label="Phone Number" data-type="phone"><span>Phone Number</span><em>Phone</em></div>
+        <div class="ct-bank-chip" data-label="Guardian Name" data-type="text"><span>Guardian Name</span><em>Text</em></div>
+        <div class="ct-bank-chip" data-label="Blood Group" data-type="dropdown" data-options="A+,A-,B+,B-,O+,O-,AB+,AB-"><span>Blood Group</span><em>Dropdown</em></div>
+        <div class="ct-bank-chip" data-label="Department" data-type="text"><span>Department</span><em>Text</em></div>
+        <div class="ct-bank-chip" data-label="Date of Birth" data-type="date"><span>Date of Birth</span><em>Date</em></div>
+        <div class="ct-bank-chip" data-label="Photo Upload" data-type="file"><span>Photo Upload</span><em>File</em></div>
+      </div>
+
+      <p class="ct-bank-group-label">Build your own</p>
+      <div id="fieldBankGeneric" class="ct-bank-list">
+        <div class="ct-bank-chip" data-label="" data-type="text"><span>Text</span><em>Custom</em></div>
+        <div class="ct-bank-chip" data-label="" data-type="number"><span>Number</span><em>Custom</em></div>
+        <div class="ct-bank-chip" data-label="" data-type="date"><span>Date</span><em>Custom</em></div>
+        <div class="ct-bank-chip" data-label="" data-type="dropdown"><span>Dropdown</span><em>Custom</em></div>
+        <div class="ct-bank-chip" data-label="" data-type="checkbox"><span>Checkbox</span><em>Custom</em></div>
+        <div class="ct-bank-chip" data-label="" data-type="file"><span>File</span><em>Custom</em></div>
+        <div class="ct-bank-chip" data-label="" data-type="email"><span>Email</span><em>Custom</em></div>
+      </div>
+    </aside>
+
+    <!-- ============ CANVAS ============ -->
+    <div class="ct-canvas-col">
+      <div class="ct-card ct-canvas-card">
+        <div class="ct-canvas-header">
+          <h2 class="ct-bank-title">Your form</h2>
+          <button type="button" id="saveFieldsBtn" class="ct-btn ct-btn-primary">Save changes</button>
+        </div>
+
+        <div id="fieldCanvas" class="ct-canvas">
+          {% for cf in custom_fields %}
+            <div class="ct-field-card" data-id="{{ cf.id }}" data-type="{{ cf.field_type.value }}">
+              <div class="ct-field-card-head">
+                <span class="ct-drag-handle" title="Drag to reorder">⠿</span>
+                <input type="text" class="ct-input ct-field-label" value="{{ cf.label }}" placeholder="Field label">
+                <span class="ct-field-type-badge">{{ cf.field_type.value }}</span>
+                <button type="button" class="ct-field-delete" data-response-count="{{ response_counts.get(cf.id, 0) }}" title="Remove field">✕</button>
+              </div>
+              <div class="ct-field-card-body">
+                <label class="ct-field-required">
+                  <input type="checkbox" class="ct-field-required-cb" {% if cf.is_required %}checked{% endif %}>
+                  Required
+                </label>
+                {% if response_counts.get(cf.id) %}
+                  <span class="ct-field-response-count">{{ response_counts[cf.id] }} response(s) recorded</span>
+                {% endif %}
+                <div class="ct-options-editor" {% if cf.field_type.value not in ['dropdown', 'checkbox'] %}hidden{% endif %}>
+                  <div class="ct-options-tags">
+                    {% for opt in (cf.options or []) %}
+                      <span class="ct-option-tag">{{ opt }}<button type="button" class="ct-option-remove">×</button></span>
+                    {% endfor %}
+                  </div>
+                  <input type="text" class="ct-options-input" placeholder="Type an option, press Enter">
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <p id="canvasEmptyState" class="ct-canvas-empty" {% if custom_fields %}hidden{% endif %}>
+          Drag fields here from the bank on the left to build your registration form.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Template cloned by JS for every newly-dropped field -->
+  <template id="fieldCardTemplate">
+    <div class="ct-field-card">
+      <div class="ct-field-card-head">
+        <span class="ct-drag-handle" title="Drag to reorder">⠿</span>
+        <input type="text" class="ct-input ct-field-label" placeholder="Field label">
+        <span class="ct-field-type-badge"></span>
+        <button type="button" class="ct-field-delete" data-response-count="0" title="Remove field">✕</button>
+      </div>
+      <div class="ct-field-card-body">
+        <label class="ct-field-required">
+          <input type="checkbox" class="ct-field-required-cb" checked>
+          Required
+        </label>
+        <div class="ct-options-editor" hidden>
+          <div class="ct-options-tags"></div>
+          <input type="text" class="ct-options-input" placeholder="Type an option, press Enter">
+        </div>
+      </div>
+    </div>
+  </template>
+
+</div>
+
+<style>
+  .ct-builder-grid {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 22px;
+    align-items: start;
+  }
+  .ct-bank { padding: 18px; position: sticky; top: 20px; }
+  .ct-bank-title { font-size: 1rem; margin: 0 0 4px; }
+  .ct-bank-hint { font-size: 0.8rem; color: var(--ct-ink-500); margin: 0 0 14px; }
+  .ct-bank-group-label {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--ct-ink-500); margin: 16px 0 8px;
+  }
+  .ct-bank-list { display: flex; flex-direction: column; gap: 6px; }
+  .ct-bank-chip {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--ct-sky-50); border: 1px solid var(--ct-line);
+    border-radius: 9px; padding: 8px 10px; cursor: grab; font-size: 0.85rem;
+  }
+  .ct-bank-chip:active { cursor: grabbing; }
+  .ct-bank-chip span { font-weight: 600; color: var(--ct-ink-900); }
+  .ct-bank-chip em { font-style: normal; font-size: 0.7rem; color: var(--ct-blue-700); background: var(--ct-sky-100); padding: 2px 7px; border-radius: 999px; }
+
+  .ct-canvas-card { padding: 18px; min-height: 420px; }
+  .ct-canvas-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .ct-canvas { display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
+  .ct-canvas-empty {
+    border: 2px dashed var(--ct-line); border-radius: 12px; padding: 40px 20px;
+    text-align: center; color: var(--ct-ink-500); font-size: 0.9rem; margin-top: 10px;
+  }
+
+  .ct-field-card {
+    border: 1px solid var(--ct-line); border-radius: 11px; background: var(--ct-sky-50);
+    padding: 12px 14px;
+  }
+  .ct-field-card-head { display: flex; align-items: center; gap: 10px; }
+  .ct-drag-handle { cursor: grab; color: var(--ct-ink-500); font-size: 1.1rem; user-select: none; }
+  .ct-field-label { flex: 1; background: #fff; }
+  .ct-field-type-badge {
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    color: var(--ct-blue-700); background: var(--ct-sky-100); padding: 4px 9px; border-radius: 999px;
+    white-space: nowrap;
+  }
+  .ct-field-delete {
+    background: none; border: none; color: var(--ct-ink-500); font-size: 1rem;
+    cursor: pointer; padding: 4px 6px; border-radius: 6px;
+  }
+  .ct-field-delete:hover { background: #FDECEA; color: var(--ct-red-600); }
+
+  .ct-field-card-body { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 10px; padding-left: 26px; }
+  .ct-field-required { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--ct-ink-700); }
+  .ct-field-response-count { font-size: 0.76rem; color: var(--ct-amber-700); background: #FFF3DF; padding: 3px 9px; border-radius: 999px; }
+
+  .ct-options-editor { flex-basis: 100%; }
+  .ct-options-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .ct-option-tag {
+    display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--ct-line);
+    border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 0.8rem;
+  }
+  .ct-option-remove { background: none; border: none; cursor: pointer; color: var(--ct-ink-500); font-size: 0.9rem; line-height: 1; }
+  .ct-options-input { width: 100%; max-width: 260px; box-sizing: border-box; padding: 7px 10px; border: 1.5px dashed var(--ct-line); border-radius: 8px; font-size: 0.85rem; font-family: inherit; }
+
+  .ct-field-card.ct-card-invalid { border-color: var(--ct-red-600); background: #FDECEA; }
+  .sortable-ghost { opacity: 0.4; }
+  .sortable-drag .ct-bank-chip, .sortable-drag { cursor: grabbing; }
+
+  @media (max-width: 760px) {
+    .ct-builder-grid { grid-template-columns: 1fr; }
+    .ct-bank { position: static; }
+  }
+</style>
+
+<script src="{{ url_for('static', filename='js/vendor/Sortable.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_fields.js') }}"></script>
