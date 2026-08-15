@@ -1,21 +1,27 @@
 """
 User portal routes — everything under /user/*.
 """
+import os
 import re
+from datetime import datetime
 
-from flask import flash, jsonify, redirect, render_template, request, url_for
+from flask import current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user
 
 from . import user_bp
 from ..decorators import role_required
 from ..extensions import db
+from ..face_match import FaceVerificationError, compare_faces
+from ..geo_utils import haversine_distance_m
 from ..models import (
-    AttendanceLog, CustomField, FieldTypeEnum, Institute, InstituteStatusEnum,
-    JoinRequest, RequestStatusEnum, RoleEnum, User,
+    AttendanceLog, CustomField, EventTypeEnum, FieldTypeEnum, Institute,
+    InstituteStatusEnum, JoinRequest, RequestStatusEnum, Room, RoleEnum, User,
 )
+from ..qr_utils import verify_qr_payload
 from ..uploads import UploadError, save_generic_file, save_photo_upload
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+SCAN_COOLDOWN_SECONDS = 5
 
 
 # =================================================================
@@ -220,7 +226,7 @@ def _save_field_responses(custom_fields: list) -> dict:
 @role_required(RoleEnum.USER)
 def dashboard():
     recent_logs = (
-        current_user.attendance_logs.order_by(AttendanceLog.timestamp.desc()).limit(10).all()
+        current_user.attendance_logs.order_by(AttendanceLog.timestamp.desc()).limit(15).all()
     )
     return render_template(
         "user/dashboard.html",
@@ -233,7 +239,121 @@ def dashboard():
 @user_bp.route("/scan")
 @role_required(RoleEnum.USER)
 def scan():
-    # TODO: html5-qrcode camera view -> face capture -> geolocation ->
-    # POST to a verification endpoint (the one place all three factors
-    # from the CampusTrack plan meet). This route just renders the page.
     return render_template("user/scan.html")
+
+
+@user_bp.route("/scan/verify", methods=["POST"])
+@role_required(RoleEnum.USER)
+def verify_scan():
+    """
+    The one place all three CampusTrack verification factors meet:
+    QR (proves which checkpoint), face (proves who), geolocation
+    (proves where). An AttendanceLog row is written EITHER way — even
+    on failure — but flagged failures don't count toward anyone's
+    live in/out status or the dashboard's counts (see the is_flagged
+    filtering added to the relevant model properties). That gives an
+    admin a real audit trail of failed/suspicious attempts instead of
+    those attempts just silently vanishing.
+    """
+    qr_payload = request.form.get("qr_payload", "")
+    latitude = request.form.get("latitude", type=float)
+    longitude = request.form.get("longitude", type=float)
+    photo = request.files.get("photo")
+
+    # --- QR check: must decode, must match a real room, must belong
+    # to the scanning user's own institute. Any failure here is a hard
+    # reject with no AttendanceLog row at all — this isn't "a checkpoint
+    # rejected you", it's "that wasn't a valid CampusTrack QR code".
+    decoded = verify_qr_payload(qr_payload)
+    if not decoded:
+        return jsonify({"success": False, "error": "That QR code isn't valid or has been tampered with."}), 400
+
+    room = Room.query.get(decoded.get("r"))
+    if not room or room.qr_token != decoded.get("t") or room.institute_id != current_user.institute_id:
+        return jsonify({"success": False, "error": "That QR code isn't valid for your institute."}), 400
+    if not room.is_active:
+        return jsonify({"success": False, "error": "This checkpoint is no longer active."}), 400
+
+    if not current_user.photo_path:
+        return jsonify({"success": False, "error": "Your account has no registered photo. Contact your admin."}), 400
+
+    if not photo or not photo.filename:
+        return jsonify({"success": False, "error": "No photo was captured. Please try again."}), 400
+
+    # --- Cooldown: block accidental rapid double-scans (e.g. the QR
+    # camera firing twice for one physical scan) from creating two logs.
+    # Checked only once we know the request itself is well-formed, so a
+    # malformed request (e.g. missing photo) always gets its own clear
+    # error instead of being masked by an unrelated cooldown message.
+    last_log = current_user.attendance_logs.order_by(AttendanceLog.timestamp.desc()).first()
+    if last_log and (datetime.utcnow() - last_log.timestamp).total_seconds() < SCAN_COOLDOWN_SECONDS:
+        return jsonify({"success": False, "error": "Please wait a few seconds before scanning again."}), 429
+
+    # --- Face check ---
+    face_verified = False
+    face_match_score = None
+    face_error = None
+    try:
+        static_folder = current_app.static_folder or os.path.join(current_app.root_path, "static")
+        registered_abs_path = os.path.join(static_folder, current_user.photo_path)
+        face_verified, face_match_score = compare_faces(registered_abs_path, photo.read())
+        if not face_verified:
+            face_error = "Face didn't match your registered profile photo."
+    except FaceVerificationError as exc:
+        face_error = str(exc)
+
+    # --- Location check ---
+    # If the admin hasn't set this room's location yet, we don't
+    # penalize the user for that gap — the check is skipped (treated
+    # as passed) rather than making check-in impossible until every
+    # room is GPS-tagged. See Room.latitude's docstring in models.py.
+    location_verified = True
+    location_error = None
+    if room.latitude is not None and room.longitude is not None:
+        if latitude is None or longitude is None:
+            location_verified = False
+            location_error = "Location access wasn't granted."
+        else:
+            distance = haversine_distance_m(latitude, longitude, room.latitude, room.longitude)
+            location_verified = distance <= room.geofence_radius_m
+            if not location_verified:
+                location_error = (
+                    f"You're about {int(distance)}m from {room.name} "
+                    f"(must be within {room.geofence_radius_m}m)."
+                )
+
+    is_fully_verified = face_verified and location_verified
+    event_type = EventTypeEnum.CHECK_OUT if current_user.current_status == "in" else EventTypeEnum.CHECK_IN
+    flag_reason = " ".join(filter(None, [face_error, location_error])) or None
+
+    log = AttendanceLog(
+        institute_id=current_user.institute_id,
+        user_id=current_user.id,
+        room_id=room.id,
+        event_type=event_type,
+        qr_verified=True,
+        face_verified=face_verified,
+        face_match_score=face_match_score,
+        location_verified=location_verified,
+        latitude=latitude,
+        longitude=longitude,
+        is_flagged=not is_fully_verified,
+        flag_reason=flag_reason,
+        device_info=(request.headers.get("User-Agent", "") or "")[:255],
+    )
+    db.session.add(log)
+    db.session.commit()
+
+    if is_fully_verified:
+        return jsonify({
+            "success": True,
+            "event_type": event_type.value,
+            "room": room.name,
+            "timestamp": log.timestamp.isoformat(),
+        })
+
+    return jsonify({
+        "success": False,
+        "error": flag_reason or "Verification failed.",
+        "logged_for_review": True,
+    })

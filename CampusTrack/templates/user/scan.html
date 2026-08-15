@@ -1,0 +1,88 @@
+{#
+  user/scan.html
+  ----------------
+  Content-only template — no <html>/<head>/<body>, no site header or
+  footer, same convention as every other CampusTrack template so far.
+
+  IF YOU ADD TEMPLATE INHERITANCE LATER: wrap everything below in
+    {% extends "base.html" %}
+    {% block content %}
+      ... (everything from <link rel="stylesheet"...> down to the
+           closing </script> tag at the bottom) ...
+    {% endblock %}
+  Nothing else here assumes a particular base layout.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+
+<div class="ct-auth-wrap">
+  <div class="ct-auth-card">
+    <p class="ct-auth-eyebrow">Check In / Out</p>
+    <h1>Scan to mark attendance</h1>
+    <p class="ct-auth-sub">Scan the QR at your checkpoint, then confirm it's you.</p>
+
+    <!-- ============ STEP 1: QR ============ -->
+    <div id="scanStepQr">
+      <div class="ct-step-indicator">
+        <span class="ct-step-active">1. Scan QR</span>
+        <span class="ct-step-sep">→</span>
+        <span>2. Confirm it's you</span>
+      </div>
+      <div id="qrReader" class="ct-qr-reader"></div>
+      <p id="qrStatus" class="ct-scan-status">Point your camera at the checkpoint's QR code.</p>
+    </div>
+
+    <!-- ============ STEP 2: FACE ============ -->
+    <div id="scanStepFace" hidden>
+      <div class="ct-step-indicator">
+        <button type="button" class="ct-btn-link" id="backToQr">← Rescan QR</button>
+        <span class="ct-step-sep">|</span>
+        <span class="ct-step-active" id="roomLabel"></span>
+      </div>
+
+      <div class="ct-face-capture">
+        <video id="faceVideo" class="ct-face-video" autoplay playsinline muted></video>
+        <canvas id="faceCanvas" hidden></canvas>
+        <img id="facePreview" class="ct-face-video" hidden alt="Captured photo">
+      </div>
+
+      <p id="faceStatus" class="ct-scan-status">Center your face in frame, then capture.</p>
+
+      <button type="button" id="captureBtn" class="ct-submit">Capture photo</button>
+      <button type="button" id="retakeBtn" class="ct-submit ct-submit-secondary" hidden>Retake</button>
+      <button type="button" id="submitBtn" class="ct-submit" hidden>Confirm check-in</button>
+    </div>
+
+    <!-- ============ STEP 3: RESULT ============ -->
+    <div id="scanStepResult" hidden style="text-align: center;">
+      <div id="resultIcon" class="ct-result-icon"></div>
+      <h2 id="resultTitle"></h2>
+      <p id="resultMessage" class="ct-auth-sub"></p>
+      <button type="button" id="scanAgainBtn" class="ct-submit">Scan again</button>
+      <a href="{{ url_for('user.dashboard') }}" class="ct-auth-footer" style="display: block; margin-top: 14px;">Back to dashboard</a>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .ct-qr-reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; min-height: 240px; }
+  .ct-scan-status { text-align: center; color: var(--ct-ink-500); font-size: 0.88rem; margin: 14px 0 18px; }
+
+  .ct-face-capture {
+    width: 100%; aspect-ratio: 1 / 1; max-width: 320px; margin: 0 auto;
+    border-radius: 50%; overflow: hidden; background: #000; border: 3px solid var(--ct-blue-600);
+  }
+  .ct-face-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+  .ct-submit-secondary { background: var(--ct-white); color: var(--ct-blue-700); border: 1.5px solid var(--ct-line); margin-top: 10px; }
+  .ct-submit-secondary:hover { background: var(--ct-sky-100); }
+  #submitBtn { margin-top: 10px; }
+
+  .ct-result-icon { font-size: 3rem; margin-bottom: 6px; }
+  .ct-result-icon.ct-result-success { color: var(--ct-green-600); }
+  .ct-result-icon.ct-result-fail { color: var(--ct-red-600); }
+</style>
+
+<script src="{{ url_for('static', filename='js/vendor/html5-qrcode.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/user_scan.js') }}"></script>

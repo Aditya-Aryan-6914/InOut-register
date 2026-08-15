@@ -289,6 +289,50 @@ def rename_room(room_id):
     return redirect(url_for("admin.rooms"))
 
 
+@admin_bp.route("/rooms/<int:room_id>/set-location", methods=["POST"])
+@role_required(RoleEnum.ADMIN)
+def set_room_location(room_id):
+    """
+    Saves the room's geofence center. Meant to be called from the
+    rooms page while the admin is physically standing at the room,
+    using the browser's own geolocation — see the "Set location"
+    button in rooms.html. AJAX endpoint (JSON in, JSON out) so the
+    page doesn't need a full reload for something this quick.
+    """
+    room = _get_own_room_or_404(room_id)
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        latitude = float(payload.get("latitude", ""))
+        longitude = float(payload.get("longitude", ""))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid coordinates."}), 400
+
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return jsonify({"error": "Coordinates out of range."}), 400
+
+    radius = payload.get("radius_m")
+    if radius is not None:
+        try:
+            radius = int(radius)
+            if not (10 <= radius <= 1000):
+                return jsonify({"error": "Radius must be between 10 and 1000 meters."}), 400
+            room.geofence_radius_m = radius
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid radius."}), 400
+
+    room.latitude = latitude
+    room.longitude = longitude
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "latitude": room.latitude,
+        "longitude": room.longitude,
+        "radius_m": room.geofence_radius_m,
+    })
+
+
 @admin_bp.route("/rooms/<int:room_id>/delete", methods=["POST"])
 @role_required(RoleEnum.ADMIN)
 def delete_room(room_id):

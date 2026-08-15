@@ -187,18 +187,23 @@ class Institute(BaseModel, TimestampMixin):
     @property
     def currently_in_count(self) -> int:
         """
-        Users belonging to this institute whose most recent AttendanceLog
-        event (across any room) was a check-in. Same "latest event per
-        user" pattern as Room.currently_in_count, just scoped by
-        institute_id instead of room_id — see that property's docstring
-        for the scaling note.
+        Users belonging to this institute whose most recent VERIFIED
+        AttendanceLog event (across any room) was a check-in. Same
+        "latest event per user" pattern as Room.currently_in_count,
+        just scoped by institute_id instead of room_id — see that
+        property's docstring for the scaling note.
+
+        Flagged (failed-verification) attempts are excluded from BOTH
+        the "what's their latest event" lookup and the final count —
+        a rejected scan shouldn't be able to make someone look
+        checked-in (or checked-out) when it wasn't actually verified.
         """
         sub = (
             db.session.query(
                 AttendanceLog.user_id,
                 func.max(AttendanceLog.timestamp).label("latest"),
             )
-            .filter(AttendanceLog.institute_id == self.id)
+            .filter(AttendanceLog.institute_id == self.id, AttendanceLog.is_flagged.is_(False))
             .group_by(AttendanceLog.user_id)
             .subquery()
         )
@@ -214,18 +219,25 @@ class Institute(BaseModel, TimestampMixin):
             .filter(
                 AttendanceLog.institute_id == self.id,
                 AttendanceLog.event_type == EventTypeEnum.CHECK_IN,
+                AttendanceLog.is_flagged.is_(False),
             )
             .count()
         )
 
     @property
     def today_checkin_count(self) -> int:
-        """Check-ins recorded since midnight UTC. Swap in institute-local
-        time here once timezone-per-institute is worth the complexity."""
+        """
+        Verified check-ins recorded since midnight UTC. Flagged attempts
+        don't count — this number is meant to answer "how many people
+        actually got in today", not "how many times was the scanner used".
+        Swap in institute-local time here once timezone-per-institute is
+        worth the complexity.
+        """
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         return AttendanceLog.query.filter(
             AttendanceLog.institute_id == self.id,
             AttendanceLog.event_type == EventTypeEnum.CHECK_IN,
+            AttendanceLog.is_flagged.is_(False),
             AttendanceLog.timestamp >= today_start,
         ).count()
 
@@ -296,8 +308,17 @@ class User(BaseModel, UserMixin, TimestampMixin):
 
     @property
     def last_attendance_event(self):
-        """Most recent check-in/out row — the basis of a live 'In'/'Out' badge."""
-        return self.attendance_logs.order_by(AttendanceLog.timestamp.desc()).first()
+        """
+        Most recent VERIFIED check-in/out row — the basis of the live
+        'In'/'Out' badge. Flagged (failed-verification) attempts are
+        excluded, so a rejected scan can't flip someone's displayed
+        status without actually having passed all three checks.
+        """
+        return (
+            self.attendance_logs.filter_by(is_flagged=False)
+            .order_by(AttendanceLog.timestamp.desc())
+            .first()
+        )
 
     @property
     def current_status(self) -> str:
@@ -471,18 +492,20 @@ class Room(BaseModel, TimestampMixin):
     @property
     def currently_in_count(self) -> int:
         """
-        Users whose most recent event AT THIS ROOM was a check-in.
-        Fine for a mini project / moderate traffic; if this gets called
-        often on a busy dashboard, replace with a maintained counter
-        column updated inside the check-in/out transaction instead of
-        recomputing from the full log every request.
+        Users whose most recent VERIFIED event AT THIS ROOM was a
+        check-in. Flagged attempts are excluded from both the "latest
+        event" lookup and the final count — see Institute.currently_in_count
+        for why. Fine for a mini project / moderate traffic; if this
+        gets called often on a busy dashboard, replace with a maintained
+        counter column updated inside the check-in/out transaction
+        instead of recomputing from the full log every request.
         """
         sub = (
             db.session.query(
                 AttendanceLog.user_id,
                 func.max(AttendanceLog.timestamp).label("latest"),
             )
-            .filter(AttendanceLog.room_id == self.id)
+            .filter(AttendanceLog.room_id == self.id, AttendanceLog.is_flagged.is_(False))
             .group_by(AttendanceLog.user_id)
             .subquery()
         )
@@ -498,15 +521,16 @@ class Room(BaseModel, TimestampMixin):
             .filter(
                 AttendanceLog.room_id == self.id,
                 AttendanceLog.event_type == EventTypeEnum.CHECK_IN,
+                AttendanceLog.is_flagged.is_(False),
             )
             .count()
         )
 
     @property
     def last_checkin_at(self):
-        """Timestamp of the most recent check-in at this room, or None if it's never been used."""
+        """Timestamp of the most recent VERIFIED check-in at this room, or None if it's never had one."""
         log = (
-            self.attendance_logs.filter_by(event_type=EventTypeEnum.CHECK_IN)
+            self.attendance_logs.filter_by(event_type=EventTypeEnum.CHECK_IN, is_flagged=False)
             .order_by(AttendanceLog.timestamp.desc())
             .first()
         )

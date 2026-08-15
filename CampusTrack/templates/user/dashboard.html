@@ -1,0 +1,103 @@
+{#
+  user/dashboard.html
+  ----------------------
+  Content-only template — no <html>/<head>/<body>, no site header or
+  footer, same convention as every other CampusTrack template.
+
+  IF YOU ADD TEMPLATE INHERITANCE LATER: wrap everything below in
+    {% extends "base.html" %}
+    {% block content %}
+      ... (everything from <link rel="stylesheet"...> down ...) ...
+    {% endblock %}
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+{# Reusing admin.css here on purpose — its .ct-card/.ct-table/.ct-btn
+   components aren't actually admin-specific, just generically named.
+   Cheaper than duplicating ~150 lines into a near-identical user.css. #}
+
+<div class="ct-admin-wrap">
+
+  <div class="ct-admin-header">
+    <div>
+      <p class="ct-admin-eyebrow">My Attendance</p>
+      <h1>Welcome, {{ user.name }}</h1>
+    </div>
+    <nav class="ct-admin-nav">
+      <a href="{{ url_for('auth.logout') }}">Log out</a>
+    </nav>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="ct-flash-list">
+        {% for category, message in messages %}
+          <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <div class="ct-card ct-status-card ct-status-{{ status }}">
+    <div>
+      <span class="ct-status-label">Current status</span>
+      <span class="ct-status-value">
+        {% if status == 'in' %}🟢 Checked in
+        {% elif status == 'out' %}⚪ Checked out
+        {% else %}— No record yet
+        {% endif %}
+      </span>
+    </div>
+    <a href="{{ url_for('user.scan') }}" class="ct-btn ct-btn-primary ct-scan-cta">Scan QR to {{ 'check out' if status == 'in' else 'check in' }}</a>
+  </div>
+
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head">
+      <h2>Recent activity</h2>
+    </div>
+
+    {% if recent_logs %}
+      <div class="ct-table-scroll">
+        <table class="ct-table">
+          <thead>
+            <tr><th>When</th><th>Room</th><th>Event</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {% for log in recent_logs %}
+              <tr>
+                <td class="muted">{{ log.timestamp.strftime('%b %d, %I:%M %p') }}</td>
+                <td>{{ log.room.name }}</td>
+                <td>{{ 'Check in' if log.event_type.value == 'check_in' else 'Check out' }}</td>
+                <td>
+                  {% if log.is_flagged %}
+                    <span class="ct-log-flagged" title="{{ log.flag_reason or 'Verification failed' }}">⚠️ Not verified</span>
+                  {% else %}
+                    <span class="ct-log-verified">✅ Verified</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ct-empty-note">No attendance recorded yet. Scan a checkpoint QR to get started.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+  .ct-status-card {
+    padding: 22px 24px; margin-bottom: 22px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+  }
+  .ct-status-label { display: block; font-size: 0.8rem; color: var(--ct-ink-500); font-weight: 600; margin-bottom: 4px; }
+  .ct-status-value { font-size: 1.3rem; font-weight: 700; color: var(--ct-ink-900); }
+  .ct-status-in .ct-status-value { color: var(--ct-green-600); }
+
+  .ct-scan-cta { padding: 12px 24px; font-size: 0.95rem; }
+
+  .ct-log-flagged { color: var(--ct-red-600); font-size: 0.85rem; cursor: help; }
+  .ct-log-verified { color: var(--ct-green-600); font-size: 0.85rem; }
+</style>

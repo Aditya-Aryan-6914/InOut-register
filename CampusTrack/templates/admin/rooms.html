@@ -71,7 +71,7 @@
 
     <div class="ct-room-grid">
       {% for room in rooms %}
-        <div class="ct-card ct-room-card">
+        <div class="ct-card ct-room-card" data-room-id="{{ room.id }}">
           <img class="ct-room-qr" src="{{ url_for('admin.room_qr_image', room_id=room.id) }}" alt="QR code for {{ room.name }}">
 
           <form method="post" action="{{ url_for('admin.rename_room', room_id=room.id) }}" class="ct-room-rename-form">
@@ -79,7 +79,18 @@
             <button type="submit" class="ct-btn ct-btn-ghost ct-btn-sm">Rename</button>
           </form>
 
+          <p class="ct-room-location-status">
+            {% if room.latitude is not none %}
+              <span class="ct-location-set">📍 Location set (±{{ room.geofence_radius_m }}m)</span>
+            {% else %}
+              <span class="ct-location-unset">⚠️ No location set — check-in geofencing won't work here yet</span>
+            {% endif %}
+          </p>
+
           <div class="ct-room-actions">
+            <button type="button" class="ct-btn ct-btn-ghost ct-btn-sm ct-set-location-btn">
+              {{ 'Update location' if room.latitude is not none else 'Set location' }}
+            </button>
             <a class="ct-btn ct-btn-ghost ct-btn-sm" href="{{ url_for('admin.room_qr_image', room_id=room.id) }}" download="{{ room.name }}-qr.png">Download QR</a>
             <form method="post" action="{{ url_for('admin.delete_room', room_id=room.id) }}"
                   onsubmit="return confirm('Delete {{ room.name }}? This also removes its attendance history.');">
@@ -112,4 +123,9 @@
   .ct-room-rename-form { display: flex; gap: 6px; margin-bottom: 10px; }
   .ct-room-name-input { font-size: 0.85rem; padding: 7px 9px; }
   .ct-room-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .ct-room-location-status { font-size: 0.76rem; margin: 0 0 10px; }
+  .ct-location-set { color: var(--ct-green-600); }
+  .ct-location-unset { color: var(--ct-amber-700); }
 </style>
+
+<script src="{{ url_for('static', filename='js/admin_rooms.js') }}"></script>
