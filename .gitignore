@@ -19,3 +19,4 @@ instance/
 dist/
 build/
 *.log
+ARCHITECTURE.md

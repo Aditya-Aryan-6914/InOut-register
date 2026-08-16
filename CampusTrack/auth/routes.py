@@ -81,7 +81,7 @@ def superuser_login():
 def logout():
     logout_user()
     flash("You have been logged out.", "info")
-    return redirect(url_for("main.index"))
+    return redirect(url_for("main.home"))
 
 
 # =================================================================
@@ -121,7 +121,7 @@ def _validate_admin_signup(form: dict, inst_pw: str, inst_pw_confirm: str,
 @auth_bp.route("/admin/signup", methods=["GET", "POST"])
 def admin_signup():
     if current_user.is_authenticated:
-        target = "admin.dashboard" if current_user.role == RoleEnum.ADMIN else "main.index"
+        target = "admin.dashboard" if current_user.role == RoleEnum.ADMIN else "main.home"
         return redirect(url_for(target))
 
     form = {
