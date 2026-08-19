@@ -1,10 +1,46 @@
 {% extends "base.html" %}
-
 {% block content %}
-<h1>Superuser Login</h1>
-<form method="post">
-  <label>Email: <input name="email"></label>
-  <label>Password: <input type="password" name="password"></label>
-  <button type="submit">Login</button>
-</form>
+{#
+  auth/superuser_login.html
+  ----------------------------
+  Same auth.css design system as the other two login pages. No signup
+  link here on purpose — superuser accounts aren't self-service, unlike
+  admin (institute signup) or user (registration).
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+
+<div class="ct-auth-wrap">
+  <div class="ct-auth-card">
+    <p class="ct-auth-eyebrow">Platform</p>
+    <h1>Superuser Login</h1>
+    <p class="ct-auth-sub">Platform-wide oversight of every institute on CampusTrack.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="ct-flash-list">
+          {% for category, message in messages %}
+            <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="{{ request.path }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+      <div class="ct-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required autofocus>
+      </div>
+      <div class="ct-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="ct-submit">Log in</button>
+    </form>
+
+    <p class="ct-auth-footer">
+      <a href="{{ url_for('main.home') }}">← Back to home</a>
+    </p>
+  </div>
+</div>
 {% endblock %}

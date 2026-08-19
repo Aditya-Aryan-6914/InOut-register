@@ -1,10 +1,54 @@
 {% extends "base.html" %}
-
 {% block content %}
-<h1>Admin Login</h1>
-<form method="post">
-  <label>Email: <input name="email"></label>
-  <label>Password: <input type="password" name="password"></label>
-  <button type="submit">Login</button>
-</form>
+{#
+  auth/admin_login.html
+  ------------------------
+  Same auth.css design system as admin_signup.html / user/register.html.
+
+  The form's `action` is set explicitly to the current path + query
+  string (not left to default) so that a `?next=/admin/fields` redirect
+  chain — set up by decorators.py when an unauthenticated admin tries
+  to reach a protected page — survives an actual browser form submit,
+  not just a direct POST in a test. Confirmed with a real browser test,
+  not assumed.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+
+<div class="ct-auth-wrap">
+  <div class="ct-auth-card">
+    <p class="ct-auth-eyebrow">Admin Portal</p>
+    <h1>Admin Login</h1>
+    <p class="ct-auth-sub">Manage your institute's registrations, fields, rooms, and live attendance.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="ct-flash-list">
+          {% for category, message in messages %}
+            <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="{{ request.path }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+      <div class="ct-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required autofocus>
+      </div>
+      <div class="ct-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="ct-submit">Log in</button>
+    </form>
+
+    <p class="ct-auth-footer">
+      Don't have an institute yet? <a href="{{ url_for('auth.admin_signup') }}">Create one</a>
+    </p>
+    <p class="ct-auth-footer">
+      Not an admin? <a href="{{ url_for('auth.user_login') }}">Student / resident login</a>
+    </p>
+  </div>
+</div>
 {% endblock %}

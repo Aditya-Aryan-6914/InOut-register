@@ -1,10 +1,49 @@
 {% extends "base.html" %}
-
 {% block content %}
-<h1>User Login</h1>
-<form method="post">
-  <label>Email: <input name="email"></label>
-  <label>Password: <input type="password" name="password"></label>
-  <button type="submit">Login</button>
-</form>
+{#
+  auth/user_login.html
+  -----------------------
+  Same auth.css design system and next-redirect handling as
+  admin_login.html — see that file's comment for why the form action
+  is set explicitly rather than left to default.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+
+<div class="ct-auth-wrap">
+  <div class="ct-auth-card">
+    <p class="ct-auth-eyebrow">Student / Resident / Worker</p>
+    <h1>Log In</h1>
+    <p class="ct-auth-sub">Scan to check in, and view your attendance history.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="ct-flash-list">
+          {% for category, message in messages %}
+            <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="{{ request.path }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+      <div class="ct-field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required autofocus>
+      </div>
+      <div class="ct-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="ct-submit">Log in</button>
+    </form>
+
+    <p class="ct-auth-footer">
+      New here? <a href="{{ url_for('user.register') }}">Register</a>
+    </p>
+    <p class="ct-auth-footer">
+      Are you an admin? <a href="{{ url_for('auth.admin_login') }}">Admin login</a>
+    </p>
+  </div>
+</div>
 {% endblock %}
