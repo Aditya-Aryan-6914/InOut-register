@@ -136,3 +136,67 @@
   color: var(--ct-ink-700);
   margin-bottom: 5px;
 }
+
+/* ---------- Stat cards ----------
+   Shared by admin/dashboard.html, superuser/dashboard.html, and
+   superuser/institute_detail.html. Lives here (not duplicated in each
+   template's own <style> block) so every page that shows a row of
+   summary numbers gets consistent layout for free. */
+.ct-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.ct-stat-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+.ct-stat-label { font-size: 0.8rem; color: var(--ct-ink-500); font-weight: 600; }
+.ct-stat-value { font-size: 1.9rem; font-weight: 700; color: var(--ct-ink-900); font-variant-numeric: tabular-nums; }
+.ct-stat-in .ct-stat-value { color: var(--ct-green-600); }
+.ct-stat-out .ct-stat-value { color: var(--ct-amber-700); }
+
+@media (max-width: 900px) {
+  .ct-stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.ct-stat-value { font-size: 1.9rem; font-weight: 700; color: var(--ct-ink-900); font-variant-numeric: tabular-nums; }
+.ct-stat-in .ct-stat-value { color: var(--ct-green-600); }
+.ct-stat-out .ct-stat-value { color: var(--ct-amber-700); }
+
+.ct-live-note {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; color: var(--ct-ink-500); margin: 10px 0 28px;
+}
+.ct-live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--ct-green-600);
+  animation: ct-pulse 1.8s ease-in-out infinite;
+}
+@keyframes ct-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.ct-section-card { padding: 22px; margin-bottom: 22px; }
+.ct-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.ct-section-head h2 { font-size: 1.05rem; margin: 0; }
+
+.ct-pending-badge {
+  font-size: 0.76rem; font-weight: 700; color: var(--ct-amber-700);
+  background: #FFF3DF; padding: 4px 11px; border-radius: 999px;
+}
+
+.ct-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.ct-table th {
+  text-align: left; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--ct-ink-500); font-weight: 700; padding: 8px 12px; border-bottom: 1px solid var(--ct-line);
+  white-space: nowrap;
+}
+.ct-table td { padding: 10px 12px; border-bottom: 1px solid var(--ct-sky-100); color: var(--ct-ink-900); }
+.ct-table tr:last-child td { border-bottom: none; }
+.ct-table .muted { color: var(--ct-ink-500); }
+.ct-table-scroll { overflow-x: auto; }
+
+.ct-request-actions { display: flex; gap: 8px; white-space: nowrap; }
+.ct-request-actions form { display: inline; }
+
+.ct-empty-note { color: var(--ct-ink-500); font-size: 0.9rem; padding: 10px 0; }
+.ct-empty-note a { color: var(--ct-blue-600); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .ct-stat-grid { grid-template-columns: repeat(2, 1fr); }
+}

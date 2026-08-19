@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  superuser/dashboard.html
+  ---------------------------
+  Platform-wide view: every institute, its primary admin, and quick
+  actions (suspend/activate/delete/change plan). Drill into an
+  institute for the full read-only detail view.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+
+<div class="ct-admin-wrap">
+
+  <div class="ct-admin-header">
+    <div>
+      <p class="ct-admin-eyebrow">Platform</p>
+      <h1>All Institutes</h1>
+      <p class="ct-admin-sub">Every institute on CampusTrack, at a glance.</p>
+    </div>
+    <nav class="ct-admin-nav">
+      <a href="{{ url_for('superuser.dashboard') }}" class="active">Dashboard</a>
+    </nav>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="ct-flash-list">
+        {% for category, message in messages %}
+          <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <!-- ============ PLATFORM STAT STRIP ============ -->
+  <div class="ct-stat-grid">
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Institutes</span>
+      <span class="ct-stat-value">{{ platform_stats.total_institutes }}</span>
+    </div>
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Admins</span>
+      <span class="ct-stat-value">{{ platform_stats.total_admins }}</span>
+    </div>
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Registered users</span>
+      <span class="ct-stat-value">{{ platform_stats.total_users }}</span>
+    </div>
+    <div class="ct-card ct-stat-card ct-stat-in">
+      <span class="ct-stat-label">Check-ins today (visible institutes)</span>
+      <span class="ct-stat-value">{{ platform_stats.checkins_today }}</span>
+    </div>
+  </div>
+
+  <!-- ============ SEARCH ============ -->
+  <form method="get" class="ct-su-search-form">
+    <input type="text" name="q" class="ct-input" placeholder="Search by institute, admin name, or admin email…" value="{{ search }}">
+    <button type="submit" class="ct-btn ct-btn-primary ct-btn-sm">Search</button>
+    {% if search %}
+      <a href="{{ url_for('superuser.dashboard') }}" class="ct-btn ct-btn-ghost ct-btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  <!-- ============ INSTITUTES TABLE ============ -->
+  <div class="ct-card ct-section-card">
+    {% if rows %}
+      <div class="ct-table-scroll">
+        <table class="ct-table">
+          <thead>
+            <tr>
+              <th>Institute</th>
+              <th>Admin</th>
+              <th>Users</th>
+              <th>Rooms</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+              {% set inst = row.institute %}
+              <tr>
+                <td><a href="{{ url_for('superuser.institute_detail', institute_id=inst.id) }}" class="ct-su-inst-link">{{ inst.name }}</a></td>
+                <td class="muted">
+                  {% if row.admin %}
+                    {{ row.admin.name }}<br><span class="ct-su-admin-email">{{ row.admin.email }}</span>
+                  {% else %}
+                    <span class="ct-su-no-admin">No admin</span>
+                  {% endif %}
+                </td>
+                <td>{{ row.user_count }}</td>
+                <td>{{ row.room_count }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('superuser.set_institute_plan', institute_id=inst.id) }}" class="ct-su-plan-form">
+                    <select name="plan" class="ct-su-plan-select" onchange="this.form.submit()">
+                      <option value="free" {% if inst.plan.value == 'free' %}selected{% endif %}>Free</option>
+                      <option value="subscribed" {% if inst.plan.value == 'subscribed' %}selected{% endif %}>Subscribed</option>
+                    </select>
+                  </form>
+                </td>
+                <td>
+                  {% if inst.status.value == 'active' %}
+                    <span class="ct-badge ct-badge-active">Active</span>
+                  {% else %}
+                    <span class="ct-badge ct-badge-suspended">Suspended</span>
+                  {% endif %}
+                </td>
+                <td class="muted">{{ inst.created_at.strftime('%b %d, %Y') }}</td>
+                <td class="ct-request-actions">
+                  {% if inst.status.value == 'active' %}
+                    <form method="post" action="{{ url_for('superuser.suspend_institute', institute_id=inst.id) }}"
+                          onsubmit="return confirm('Suspend {{ inst.name }}? Its admin and users will not be able to log in until reactivated.');">
+                      <button type="submit" class="ct-btn ct-btn-danger ct-btn-sm">Suspend</button>
+                    </form>
+                  {% else %}
+                    <form method="post" action="{{ url_for('superuser.activate_institute', institute_id=inst.id) }}">
+                      <button type="submit" class="ct-btn ct-btn-primary ct-btn-sm">Activate</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ct-empty-note">
+        {% if search %}No institutes match "{{ search }}".{% else %}No institutes have signed up yet.{% endif %}
+      </p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+  .ct-su-search-form { display: flex; gap: 8px; margin-bottom: 18px; max-width: 480px; }
+  .ct-su-search-form .ct-input { flex: 1; }
+
+  .ct-su-inst-link { color: var(--ct-blue-700); font-weight: 600; text-decoration: none; }
+  .ct-su-inst-link:hover { text-decoration: underline; }
+  .ct-su-admin-email { color: var(--ct-ink-500); font-size: 0.78rem; }
+  .ct-su-no-admin { color: var(--ct-red-600); font-style: italic; font-size: 0.85rem; }
+
+  .ct-su-plan-select {
+    font-size: 0.8rem; padding: 5px 8px; border: 1px solid var(--ct-line);
+    border-radius: 7px; background: var(--ct-white); color: var(--ct-ink-900);
+  }
+
+  .ct-badge { font-size: 0.76rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+  .ct-badge-active { color: var(--ct-green-600); background: #E7F6EE; }
+  .ct-badge-suspended { color: var(--ct-red-600); background: #FDECEA; }
+</style>
+{% endblock %}

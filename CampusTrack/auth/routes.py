@@ -52,6 +52,15 @@ def _handle_login(role: RoleEnum, template_name: str, dashboard_endpoint: str):
             flash("This account has been suspended. Contact your institute admin.", "error")
             return render_template(template_name), 403
 
+        # A suspended INSTITUTE (superuser action) should block its admin/user
+        # logins too, not just new registrations — otherwise "suspend" only
+        # stops new signups while everyone already in keeps full access.
+        # Superusers have no institute (institute_id is None) so this never
+        # applies to them.
+        if user.institute is not None and user.institute.status.value == "suspended":
+            flash("Your institute's access has been suspended. Contact the platform administrator.", "error")
+            return render_template(template_name), 403
+
         login_user(user)
         next_url = request.args.get("next")
         if next_url and _is_safe_next(next_url):

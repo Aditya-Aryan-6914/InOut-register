@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  superuser/institute_detail.html
+  ----------------------------------
+  Read-only mirror of what an institute's own admin sees on their
+  dashboard, plus the platform-level actions (suspend/activate/delete)
+  that only a superuser can take. No approve/reject controls here —
+  reviewing join requests stays the admin's job, not the superuser's.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+
+<div class="ct-admin-wrap">
+
+  <div class="ct-admin-header">
+    <div>
+      <p class="ct-admin-eyebrow">
+        <a href="{{ url_for('superuser.dashboard') }}" class="ct-su-back">← All Institutes</a>
+      </p>
+      <h1>{{ institute.name }}</h1>
+      <p class="ct-admin-sub">
+        {% if institute.status.value == 'active' %}
+          <span class="ct-badge ct-badge-active">Active</span>
+        {% else %}
+          <span class="ct-badge ct-badge-suspended">Suspended</span>
+        {% endif %}
+        <span class="ct-badge ct-badge-plan">{{ institute.plan.value|capitalize }} plan</span>
+        · Joined {{ institute.created_at.strftime('%b %d, %Y') }}
+      </p>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="ct-flash-list">
+        {% for category, message in messages %}
+          <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <!-- ============ STAT CARDS ============ -->
+  <div class="ct-stat-grid">
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Registered users</span>
+      <span class="ct-stat-value">{{ users|length }}</span>
+    </div>
+    <div class="ct-card ct-stat-card ct-stat-in">
+      <span class="ct-stat-label">Currently in</span>
+      <span class="ct-stat-value">{{ currently_in }}</span>
+    </div>
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Rooms</span>
+      <span class="ct-stat-value">{{ rooms|length }}</span>
+    </div>
+    <div class="ct-card ct-stat-card">
+      <span class="ct-stat-label">Pending requests</span>
+      <span class="ct-stat-value">{{ pending_requests }}</span>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN(S) ============ -->
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head"><h2>Admin</h2></div>
+    {% if admins %}
+      <div class="ct-table-scroll">
+        <table class="ct-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Registered</th></tr></thead>
+          <tbody>
+            {% for admin in admins %}
+              <tr>
+                <td>{{ admin.name }}</td>
+                <td class="muted">{{ admin.email }}</td>
+                <td class="muted">{{ admin.created_at.strftime('%b %d, %Y') }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ct-empty-note">No admin account exists for this institute.</p>
+    {% endif %}
+  </div>
+
+  <!-- ============ USERS ============ -->
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head"><h2>Registered users</h2></div>
+    {% if users %}
+      <div class="ct-table-scroll">
+        <table class="ct-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Current</th><th>Registered</th></tr></thead>
+          <tbody>
+            {% for u in users %}
+              <tr>
+                <td>{{ u.name }}</td>
+                <td class="muted">{{ u.email }}</td>
+                <td>
+                  {% if u.status.value == 'active' %}
+                    <span class="ct-badge ct-badge-active">Active</span>
+                  {% else %}
+                    <span class="ct-badge ct-badge-suspended">Suspended</span>
+                  {% endif %}
+                </td>
+                <td class="muted">
+                  {% if u.current_status == 'in' %}🟢 In{% elif u.current_status == 'out' %}⚪ Out{% else %}—{% endif %}
+                </td>
+                <td class="muted">{{ u.created_at.strftime('%b %d, %Y') }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ct-empty-note">No users have registered yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- ============ ROOMS ============ -->
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head"><h2>Rooms</h2></div>
+    {% if rooms %}
+      <div class="ct-table-scroll">
+        <table class="ct-table">
+          <thead><tr><th>Room</th><th>Currently in</th><th>Location configured</th></tr></thead>
+          <tbody>
+            {% for room in rooms %}
+              <tr>
+                <td>{{ room.name }}</td>
+                <td>{{ room.currently_in_count }}</td>
+                <td class="muted">{{ 'Yes' if room.latitude is not none else 'No' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ct-empty-note">No rooms set up yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- ============ CUSTOM FIELDS ============ -->
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head"><h2>Registration fields</h2></div>
+    {% if custom_fields %}
+      <ul class="ct-su-field-list">
+        {% for field in custom_fields %}
+          <li>{{ field.label }} <span class="muted">({{ field.field_type.value }}{% if field.is_required %}, required{% endif %})</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="ct-empty-note">No custom fields configured.</p>
+    {% endif %}
+  </div>
+
+  <!-- ============ DANGER ZONE ============ -->
+  <div class="ct-card ct-section-card ct-danger-zone">
+    <div class="ct-section-head"><h2>Danger zone</h2></div>
+    <div class="ct-danger-row">
+      <div>
+        <strong>Delete this institute</strong>
+        <p class="ct-admin-sub" style="margin: 4px 0 0;">
+          Permanently removes {{ institute.name }}, its admin, all users, rooms, and attendance history. Cannot be undone.
+        </p>
+      </div>
+      <button type="button" class="ct-btn ct-btn-danger" id="deleteInstBtn">Delete institute…</button>
+    </div>
+
+    <form method="post" action="{{ url_for('superuser.delete_institute', institute_id=institute.id) }}" id="deleteInstForm" hidden>
+      <div class="ct-field" style="max-width: 360px; margin-top: 14px;">
+        <label class="ct-label" for="confirm_name">Type <strong>{{ institute.name }}</strong> to confirm</label>
+        <input type="text" id="confirm_name" name="confirm_name" class="ct-input" autocomplete="off">
+      </div>
+      <button type="submit" class="ct-btn ct-btn-danger ct-btn-sm" style="margin-top: 10px;">Permanently delete</button>
+      <button type="button" class="ct-btn ct-btn-ghost ct-btn-sm" id="cancelDeleteBtn" style="margin-top: 10px;">Cancel</button>
+    </form>
+  </div>
+
+</div>
+
+<style>
+  .ct-su-back { color: var(--ct-blue-600); text-decoration: none; font-weight: 700; }
+  .ct-su-back:hover { text-decoration: underline; }
+  .ct-badge-plan { color: var(--ct-blue-700); background: var(--ct-sky-100); }
+
+  .ct-su-field-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; }
+  .ct-su-field-list li { padding: 6px 0; border-bottom: 1px solid var(--ct-sky-100); }
+  .ct-su-field-list li:last-child { border-bottom: none; }
+
+  .ct-danger-zone { border-color: #F5C2C0; }
+  .ct-danger-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+</style>
+
+<script>
+  (function () {
+    const showBtn = document.getElementById("deleteInstBtn");
+    const form = document.getElementById("deleteInstForm");
+    const cancelBtn = document.getElementById("cancelDeleteBtn");
+    if (!showBtn || !form) return;
+
+    showBtn.addEventListener("click", function () {
+      showBtn.hidden = true;
+      form.hidden = false;
+      document.getElementById("confirm_name").focus();
+    });
+    cancelBtn.addEventListener("click", function () {
+      form.hidden = true;
+      showBtn.hidden = false;
+      document.getElementById("confirm_name").value = "";
+    });
+  })();
+</script>
+{% endblock %}
