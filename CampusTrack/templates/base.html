@@ -40,7 +40,11 @@
     </nav>
 
     <div class="header-actions">
-      <a href="{{ url_for('auth.user_login') }}" class="btn btn-primary btn-sm">Log in</a>
+      {% if current_user.is_authenticated %}
+      <a href="{{ url_for('auth.logout') }}" class="btn btn-primary btn-sm">Logout</a>
+      {% else %}
+      <a href="{{ url_for('auth.user_login') }}" class="btn btn-primary btn-sm">Login</a>
+      {% endif %}
       <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mainNav" aria-label="Toggle menu">
         <span></span><span></span><span></span>
       </button>
