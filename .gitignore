@@ -20,3 +20,4 @@ dist/
 build/
 *.log
 ARCHITECTURE.md
+CampusTrack/static/uploads/
