@@ -14,10 +14,13 @@ htmlcov/
 *.db
 *.sqlite3
 instance/
+# Runtime user-uploaded content — keep the folders, ignore their contents
+CampusTrack/static/uploads/**/*
+!CampusTrack/static/uploads/**/
+!CampusTrack/static/uploads/**/.gitkeep
 .vscode/
 .idea/
 dist/
 build/
 *.log
 ARCHITECTURE.md
-CampusTrack/static/uploads/
