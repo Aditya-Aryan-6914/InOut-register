@@ -1,4 +1,5 @@
-{#
+{% extends "base.html" %}
+{% block content %}{#
   user/scan.html
   ----------------
   Content-only template — no <html>/<head>/<body>, no site header or
@@ -86,3 +87,4 @@
 
 <script src="{{ url_for('static', filename='js/vendor/html5-qrcode.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/user_scan.js') }}"></script>
+{% endblock %}
