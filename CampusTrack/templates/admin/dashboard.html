@@ -30,6 +30,7 @@
       <a href="{{ url_for('admin.dashboard') }}" class="active">Dashboard</a>
       <a href="{{ url_for('admin.fields') }}">Fields</a>
       <a href="{{ url_for('admin.rooms') }}">Rooms</a>
+      <a href="{{ url_for('admin.face_flags') }}">Face Flags{% if pending_face_flags %} <span class="ct-pending-badge">{{ pending_face_flags }}</span>{% endif %}</a>
     </nav>
   </div>
 

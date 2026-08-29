@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  admin/face_flags.html
+  ----------------------
+  Lists unresolved FaceReviewFlag rows for the admin's institute —
+  raised when a user's "Improve Face" capture didn't closely match
+  their existing samples. See user/routes.py submit_improve_face()
+  and admin/routes.py face_flags() for the full picture.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+
+<div class="ct-admin-wrap">
+
+  <div class="ct-admin-header">
+    <div>
+      <p class="ct-admin-eyebrow">Review</p>
+      <h1>Face Flags</h1>
+      <p class="ct-admin-sub">
+        These users added a new face photo via "Improve Face" that didn't closely
+        match their existing photos. Their check-in already works normally with the
+        new photo — this is just a chance to confirm it's really them.
+      </p>
+    </div>
+    <nav class="ct-admin-nav">
+      <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('admin.fields') }}">Fields</a>
+      <a href="{{ url_for('admin.rooms') }}">Rooms</a>
+      <a href="{{ url_for('admin.face_flags') }}" class="active">Face Flags</a>
+    </nav>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul class="ct-flash-list">
+        {% for category, message in messages %}
+          <li class="ct-flash ct-flash-{{ 'error' if category == 'error' else category }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <div class="ct-card ct-section-card">
+    <div class="ct-section-head">
+      <h2>Pending review</h2>
+      <span class="ct-pending-badge">{{ flags|length }} waiting</span>
+    </div>
+
+    {% if flags %}
+      <div class="ct-table-scroll">
+        <table class="ct-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>New photo</th>
+              <th>Similarity distance</th>
+              <th>Flagged</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for flag in flags %}
+              <tr>
+                <td>{{ flag.user.name }}</td>
+                <td class="muted">{{ flag.user.email }}</td>
+                <td>
+                  {% if flag.new_face_photo %}
+                    <a href="{{ url_for('static', filename=flag.new_face_photo.photo_path) }}" target="_blank" rel="noopener">
+                      <img src="{{ url_for('static', filename=flag.new_face_photo.photo_path) }}" alt="New face photo" class="ct-face-flag-thumb">
+                    </a>
+                  {% else %}
+                    <span class="muted">deleted</span>
+                  {% endif %}
+                </td>
+                <td class="muted" title="Lower is more similar; this exceeded the normal check-in match threshold">{{ "%.1f"|format(flag.distance) }}</td>
+                <td class="muted">{{ flag.created_at.strftime('%b %d, %I:%M %p') }}</td>
+                <td class="ct-request-actions">
+                  <form method="post" action="{{ url_for('admin.approve_face_flag', flag_id=flag.id) }}"
+                        onsubmit="return confirm('Confirm this is really {{ flag.user.name }}? The photo will stay active for check-in.');">
+                    <button type="submit" class="ct-btn ct-btn-primary ct-btn-sm">It's them</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.revert_face_flag', flag_id=flag.id) }}"
+                        onsubmit="return confirm('Remove this photo from {{ flag.user.name }}\'s face data? They\'ll need to add a new one.');">
+                    <button type="submit" class="ct-btn ct-btn-danger ct-btn-sm">Remove photo</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ct-empty-note">No flagged face photos right now.</p>
+    {% endif %}
+  </div>
+
+</div>
+
+<style>
+  .ct-face-flag-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--ct-line); }
+</style>
+
+{% endblock %}

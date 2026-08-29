@@ -90,21 +90,41 @@ def _detect_and_crop_face(gray_image) -> Optional[cv2.typing.MatLike]:
     return cv2.resize(crop, FACE_SIZE)
 
 
-def compare_faces(registered_photo_abs_path: str, captured_image_bytes: bytes) -> tuple[bool, float]:
+def compare_faces(registered_photo_abs_paths: list[str], captured_image_bytes: bytes) -> tuple[bool, float]:
     """
-    Compares the check-in camera capture against the user's registered
-    profile photo. Returns (matched, distance) — lower distance means
-    more similar. Raises FaceVerificationError (safe to show directly
-    to the user) if a face can't be located in either image at all,
-    which is a distinct, more actionable failure than "didn't match".
-    """
-    registered_gray = _load_gray(registered_photo_abs_path)
-    if registered_gray is None:
-        raise FaceVerificationError("Your registered profile photo couldn't be read. Contact your admin.")
+    Compares a live camera capture against a user's registered face
+    samples. Returns (matched, distance) — lower distance means more
+    similar. Raises FaceVerificationError (safe to show directly to
+    the user) if a face can't be located in the capture, or in *every*
+    registered sample, which is a distinct, more actionable failure
+    than "didn't match".
 
-    registered_face = _detect_and_crop_face(registered_gray)
-    if registered_face is None:
-        raise FaceVerificationError("No face could be found in your registered profile photo. Contact your admin.")
+    Accepts a LIST of registered photos (not just one) on purpose:
+    LBPH trained on a single reference image is very sensitive to
+    lighting/pose/expression differences between that one photo and
+    whatever the live capture happens to look like. Training on
+    several samples of the same person — ideally spanning some natural
+    variation — gives LBPH a much more forgiving, realistic model of
+    "what this person's face looks like" and directly reduces false
+    check-in rejections. Any individual sample that's missing, unreadable,
+    or has no detectable face is silently skipped rather than failing
+    the whole comparison, since a user is expected to accumulate samples
+    over time via "Improve Face" and not all of them need to be perfect.
+    """
+    registered_faces = []
+    for path in registered_photo_abs_paths:
+        gray = _load_gray(path)
+        if gray is None:
+            continue
+        face = _detect_and_crop_face(gray)
+        if face is None:
+            continue
+        registered_faces.append(face)
+
+    if not registered_faces:
+        raise FaceVerificationError(
+            "No usable registered face photo was found for your account. Contact your admin."
+        )
 
     captured_gray = _load_gray(captured_image_bytes)
     if captured_gray is None:
@@ -120,7 +140,7 @@ def compare_faces(registered_photo_abs_path: str, captured_image_bytes: bytes) -
     # runtime). Same category of issue as the qrcode.save() ignore in
     # admin/routes.py.
     recognizer = cv2.face.LBPHFaceRecognizer_create()  # type: ignore[reportAttributeAccessIssue]
-    recognizer.train([registered_face], np.array([0]))
+    recognizer.train(registered_faces, np.array([0] * len(registered_faces)))
     _, distance = recognizer.predict(captured_face)
 
     return distance <= MATCH_THRESHOLD, float(distance)

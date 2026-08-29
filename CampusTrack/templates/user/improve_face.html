@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+{#
+  user/improve_face.html
+  ----------------------
+  Content-only template — same convention as scan.html: no
+  <html>/<head>/<body>, no site header/footer.
+
+  Reuses the exact camera-capture UI pattern from user/scan.html
+  (same CSS classes, same capture/retake flow) so it feels like part
+  of the same app rather than a bolted-on page.
+#}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+
+<div class="ct-auth-wrap">
+  <div class="ct-auth-card">
+    <p class="ct-auth-eyebrow">My Face Data</p>
+    <h1>Improve Face</h1>
+    <p class="ct-auth-sub">
+      Struggling to check in? Add a fresh photo of your face so future
+      check-ins recognize you more reliably — under your current
+      lighting, angle, or look.
+    </p>
+
+    <div id="faceStepCapture">
+      <div class="ct-face-capture">
+        <video id="faceVideo" class="ct-face-video" autoplay playsinline muted></video>
+        <canvas id="faceCanvas" hidden></canvas>
+        <img id="facePreview" class="ct-face-video" hidden alt="Captured photo">
+      </div>
+
+      <p id="faceStatus" class="ct-scan-status">Center your face in frame, then capture.</p>
+
+      <button type="button" id="captureBtn" class="ct-submit">Capture photo</button>
+      <button type="button" id="retakeBtn" class="ct-submit ct-submit-secondary" hidden>Retake</button>
+      <button type="button" id="submitBtn" class="ct-submit" hidden>Save this photo</button>
+    </div>
+
+    <div id="faceStepResult" hidden style="text-align: center;">
+      <div id="resultIcon" class="ct-result-icon"></div>
+      <h2 id="resultTitle"></h2>
+      <p id="resultMessage" class="ct-auth-sub"></p>
+      <button type="button" id="captureAgainBtn" class="ct-submit">Add another photo</button>
+      <a href="{{ url_for('user.dashboard') }}" class="ct-auth-footer" style="display: block; margin-top: 14px;">Back to dashboard</a>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .ct-face-capture {
+    width: 100%; aspect-ratio: 1 / 1; max-width: 320px; margin: 0 auto;
+    border-radius: 50%; overflow: hidden; background: #000; border: 3px solid var(--ct-blue-600);
+  }
+  .ct-face-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  .ct-scan-status { text-align: center; color: var(--ct-ink-500); font-size: 0.88rem; margin: 14px 0 18px; }
+
+  .ct-submit-secondary { background: var(--ct-white); color: var(--ct-blue-700); border: 1.5px solid var(--ct-line); margin-top: 10px; }
+  .ct-submit-secondary:hover { background: var(--ct-sky-100); }
+  #submitBtn { margin-top: 10px; }
+
+  .ct-result-icon { font-size: 3rem; margin-bottom: 6px; }
+  .ct-result-icon.ct-result-success { color: var(--ct-green-600); }
+  .ct-result-icon.ct-result-fail { color: var(--ct-red-600); }
+</style>
+
+<script src="{{ url_for('static', filename='js/user_improve_face.js') }}"></script>
+{% endblock %}

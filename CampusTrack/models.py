@@ -290,6 +290,17 @@ class User(BaseModel, UserMixin, TimestampMixin):
         foreign_keys="AttendanceLog.user_id",
         cascade="all, delete-orphan",
     )
+    face_photos: DynamicMapped["UserFacePhoto"] = relationship(
+        "UserFacePhoto", backref="user", lazy="dynamic",
+        foreign_keys="UserFacePhoto.user_id",
+        cascade="all, delete-orphan",
+        order_by="UserFacePhoto.created_at",
+    )
+    face_review_flags: DynamicMapped["FaceReviewFlag"] = relationship(
+        "FaceReviewFlag", backref="user", lazy="dynamic",
+        foreign_keys="FaceReviewFlag.user_id",
+        cascade="all, delete-orphan",
+    )
 
     # --- Helpers ---
     def set_password(self, raw_password: str) -> None:
@@ -297,6 +308,18 @@ class User(BaseModel, UserMixin, TimestampMixin):
 
     def check_password(self, raw_password: str) -> bool:
         return check_password_hash(self.password_hash, raw_password)
+
+    def face_sample_rel_paths(self) -> list[str]:
+        """
+        Paths (relative to the static folder) of every face sample
+        used to train the LBPH recognizer against at check-in.
+
+        Falls back to the single legacy `photo_path` for users who
+        registered before UserFacePhoto existed and have never used
+        "Improve Face" — so nothing breaks for existing accounts.
+        """
+        paths = [p.photo_path for p in self.face_photos.all()]
+        return paths if paths else ([self.photo_path] if self.photo_path else [])
 
     @property
     def is_admin(self) -> bool:
@@ -543,6 +566,62 @@ class Room(BaseModel, TimestampMixin):
 # =============================================================
 # AttendanceLog  (one row per scan event)
 # =============================================================
+
+class FaceSampleSourceEnum(enum.Enum):
+    REGISTRATION = "registration"   # seeded from the photo uploaded at signup
+    IMPROVE_FACE = "improve_face"   # added later via the self-service page
+
+
+class UserFacePhoto(BaseModel, TimestampMixin):
+    """
+    One face-match training sample. A user can have several — LBPH
+    (see face_match.py) trains meaningfully better on a handful of
+    images spanning natural lighting/angle variation than on a single
+    static photo, which is what was causing check-in false-rejects.
+
+    NOTE: separate from User.photo_path on purpose. photo_path is the
+    profile display picture and stays fixed at whatever was uploaded
+    at registration; these rows are purely the face-match corpus and
+    can be added to freely via "Improve Face" without ever touching
+    the profile photo shown around the UI.
+    """
+    __tablename__ = "user_face_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    photo_path = db.Column(db.String(255), nullable=False)
+    source = db.Column(db.Enum(FaceSampleSourceEnum), nullable=False, default=FaceSampleSourceEnum.IMPROVE_FACE)
+
+    def __repr__(self):
+        return f"<UserFacePhoto {self.id} user={self.user_id} source={self.source.value}>"
+
+
+class FaceReviewFlag(BaseModel, TimestampMixin):
+    """
+    Raised automatically when someone adds a new face sample via
+    "Improve Face" that doesn't reasonably resemble their *existing*
+    samples — the guard against someone swapping in a different
+    person's face through that self-service flow. The new sample is
+    still accepted and used immediately (so a legitimate user isn't
+    locked out over one bad-lighting capture); this row is what lets
+    an admin catch and review the cases that might be misuse.
+    """
+    __tablename__ = "face_review_flags"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    new_face_photo_id = db.Column(db.Integer, db.ForeignKey("user_face_photos.id", ondelete="CASCADE"), nullable=True)
+    distance = db.Column(db.Float, nullable=False)  # LBPH distance vs. prior samples; higher = less similar
+
+    resolved = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+
+    new_face_photo = relationship("UserFacePhoto", foreign_keys=[new_face_photo_id])
+
+    def __repr__(self):
+        return f"<FaceReviewFlag {self.id} user={self.user_id} resolved={self.resolved}>"
+
 
 class AttendanceLog(BaseModel):
     """

@@ -26,6 +26,7 @@
       <h1>Welcome, {{ user.name }}</h1>
     </div>
     <nav class="ct-admin-nav">
+      <a href="{{ url_for('user.improve_face') }}">Improve Face</a>
       <a href="{{ url_for('auth.logout') }}">Log out</a>
     </nav>
   </div>

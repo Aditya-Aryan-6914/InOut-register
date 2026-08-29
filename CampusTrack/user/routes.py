@@ -14,14 +14,21 @@ from ..extensions import db
 from ..face_match import FaceVerificationError, compare_faces
 from ..geo_utils import haversine_distance_m
 from ..models import (
-    AttendanceLog, CustomField, EventTypeEnum, FieldTypeEnum, Institute,
-    InstituteStatusEnum, JoinRequest, RequestStatusEnum, Room, RoleEnum, User,
+    AttendanceLog, CustomField, EventTypeEnum, FaceReviewFlag, FaceSampleSourceEnum,
+    FieldTypeEnum, Institute, InstituteStatusEnum, JoinRequest, RequestStatusEnum,
+    Room, RoleEnum, User, UserFacePhoto,
 )
 from ..qr_utils import verify_qr_payload
 from ..uploads import UploadError, save_generic_file, save_photo_upload
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 SCAN_COOLDOWN_SECONDS = 5
+
+# Cap how many face samples one user can accumulate via "Improve Face"
+# over time — LBPH training time/accuracy doesn't keep improving past
+# a handful of samples, and this keeps disk usage bounded. When the
+# cap is hit, the oldest sample is retired to make room for the new one.
+MAX_FACE_SAMPLES = 6
 
 
 # =================================================================
@@ -274,7 +281,8 @@ def verify_scan():
     if not room.is_active:
         return jsonify({"success": False, "error": "This checkpoint is no longer active."}), 400
 
-    if not current_user.photo_path:
+    face_sample_paths = current_user.face_sample_rel_paths()
+    if not face_sample_paths:
         return jsonify({"success": False, "error": "Your account has no registered photo. Contact your admin."}), 400
 
     if not photo or not photo.filename:
@@ -295,8 +303,8 @@ def verify_scan():
     face_error = None
     try:
         static_folder = current_app.static_folder or os.path.join(current_app.root_path, "static")
-        registered_abs_path = os.path.join(static_folder, current_user.photo_path)
-        face_verified, face_match_score = compare_faces(registered_abs_path, photo.read())
+        registered_abs_paths = [os.path.join(static_folder, p) for p in face_sample_paths]
+        face_verified, face_match_score = compare_faces(registered_abs_paths, photo.read())
         if not face_verified:
             face_error = "Face didn't match your registered profile photo."
     except FaceVerificationError as exc:
@@ -356,4 +364,98 @@ def verify_scan():
         "success": False,
         "error": flag_reason or "Verification failed.",
         "logged_for_review": True,
+    })
+
+
+# =================================================================
+# Improve Face — self-service: let a user add a fresh live face
+# sample any time (new haircut, glasses, a room that's badly lit,
+# or they've just been failing check-in a lot). See face_match.py
+# and models.UserFacePhoto for why multiple samples matter.
+#
+# SECURITY: every write here is scoped to `current_user` only — there
+# is no user_id taken from the client anywhere in this route, so a
+# request can only ever add/replace ITS OWN samples, never someone
+# else's. The remaining risk this feature opens up is a user using
+# their own legitimate access to swap in a different person's face
+# entirely (to let that person check in for them). That's mitigated,
+# not blocked outright: the new capture is compared against the
+# user's EXISTING samples first, and if it doesn't reasonably match,
+# it's still accepted (so a real user having a bad-lighting day isn't
+# locked out) but a FaceReviewFlag is raised for an admin to look at.
+# =================================================================
+
+@user_bp.route("/face/improve")
+@role_required(RoleEnum.USER)
+def improve_face():
+    return render_template("user/improve_face.html")
+
+
+@user_bp.route("/face/improve", methods=["POST"])
+@role_required(RoleEnum.USER)
+def submit_improve_face():
+    photo = request.files.get("photo")
+    if not photo or not photo.filename:
+        return jsonify({"success": False, "error": "No photo was captured. Please try again."}), 400
+
+    captured_bytes = photo.read()
+    photo.stream.seek(0)  # save_photo_upload needs to read the stream again
+
+    existing_paths = current_user.face_sample_rel_paths()
+
+    # --- Gate: does this look like the same person as their existing
+    # samples? Only meaningful once at least one prior sample exists
+    # (always true past registration) — skip the check if somehow none
+    # exist yet, since there's nothing to compare against.
+    distance = None
+    looks_like_same_person = True
+    if existing_paths:
+        static_folder = current_app.static_folder or os.path.join(current_app.root_path, "static")
+        existing_abs_paths = [os.path.join(static_folder, p) for p in existing_paths]
+        try:
+            looks_like_same_person, distance = compare_faces(existing_abs_paths, captured_bytes)
+        except FaceVerificationError as exc:
+            return jsonify({"success": False, "error": str(exc)}), 400
+
+    try:
+        new_photo_path = save_photo_upload(photo)
+    except UploadError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+
+    new_sample = UserFacePhoto(
+        user_id=current_user.id,
+        photo_path=new_photo_path,
+        source=FaceSampleSourceEnum.IMPROVE_FACE,
+    )
+    db.session.add(new_sample)
+    db.session.flush()  # so new_sample.id exists for the flag row below
+
+    if not looks_like_same_person and distance is not None:
+        db.session.add(FaceReviewFlag(
+            user_id=current_user.id,
+            new_face_photo_id=new_sample.id,
+            distance=distance,
+        ))
+
+    # Enforce the sample cap — retire the oldest sample(s) once we're
+    # over MAX_FACE_SAMPLES. Never evict the one we just added.
+    all_samples = current_user.face_photos.order_by(UserFacePhoto.created_at).all()
+    while len(all_samples) > MAX_FACE_SAMPLES:
+        oldest = all_samples.pop(0)
+        if oldest.id != new_sample.id:
+            db.session.delete(oldest)
+
+    db.session.commit()
+
+    if looks_like_same_person:
+        return jsonify({
+            "success": True,
+            "message": "New face sample saved. This should make check-in more reliable.",
+        })
+    return jsonify({
+        "success": True,
+        "message": (
+            "Saved — but it didn't closely match your existing photos, so it's "
+            "been flagged for your admin to review. Check-in will still work normally."
+        ),
     })

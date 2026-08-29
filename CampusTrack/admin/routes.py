@@ -18,8 +18,8 @@ from . import admin_bp
 from ..decorators import role_required
 from ..extensions import db
 from ..models import (
-    CustomField, FieldTypeEnum, JoinRequest, RequestStatusEnum, Room,
-    RoleEnum, User, UserFieldValue,
+    CustomField, FaceReviewFlag, FaceSampleSourceEnum, FieldTypeEnum, JoinRequest,
+    RequestStatusEnum, Room, RoleEnum, User, UserFacePhoto, UserFieldValue,
 )
 from ..qr_utils import make_qr_payload
 
@@ -39,6 +39,12 @@ def dashboard():
         .all()
     )
 
+    pending_face_flags = (
+        FaceReviewFlag.query.join(User, FaceReviewFlag.user_id == User.id)
+        .filter(User.institute_id == institute.id, FaceReviewFlag.resolved.is_(False))
+        .count()
+    )
+
     return render_template(
         "admin/dashboard.html",
         institute=institute,
@@ -48,6 +54,7 @@ def dashboard():
         rooms=institute.rooms.order_by(Room.name).all(),
         custom_fields=custom_fields,
         pending_requests=pending_requests,
+        pending_face_flags=pending_face_flags,
     )
 
 
@@ -377,6 +384,17 @@ def approve_request(request_id):
     for field_id_str, value in (join_request.field_responses or {}).items():
         db.session.add(UserFieldValue(user_id=new_user.id, field_id=int(field_id_str), value=value))
 
+    # Seed face-match sample #1 from the registration photo. Kept as
+    # its own UserFacePhoto row (not just relying on User.photo_path)
+    # so it trains alongside anything the user later adds via
+    # "Improve Face" — see User.face_sample_rel_paths().
+    if join_request.photo_path:
+        db.session.add(UserFacePhoto(
+            user_id=new_user.id,
+            photo_path=join_request.photo_path,
+            source=FaceSampleSourceEnum.REGISTRATION,
+        ))
+
     join_request.status = RequestStatusEnum.APPROVED
     join_request.reviewed_by_id = current_user.id
     db.session.commit()
@@ -409,3 +427,59 @@ def _get_own_join_request_or_404(request_id: int) -> JoinRequest:
     if join_request.institute_id != current_user.institute_id:
         abort(404)
     return join_request
+
+
+# =================================================================
+# Face review flags — raised automatically (see user/routes.py
+# submit_improve_face) when someone's "Improve Face" capture doesn't
+# closely match their existing samples. Doesn't block the user, just
+# surfaces the case here so an admin can confirm it's really them
+# (or catch someone trying to register a different person's face).
+# =================================================================
+
+@admin_bp.route("/face-flags")
+@role_required(RoleEnum.ADMIN)
+def face_flags():
+    flags = (
+        FaceReviewFlag.query.join(User, FaceReviewFlag.user_id == User.id)
+        .filter(User.institute_id == current_user.institute_id, FaceReviewFlag.resolved.is_(False))
+        .order_by(FaceReviewFlag.created_at.desc())
+        .all()
+    )
+    return render_template("admin/face_flags.html", flags=flags)
+
+
+@admin_bp.route("/face-flags/<int:flag_id>/approve", methods=["POST"])
+@role_required(RoleEnum.ADMIN)
+def approve_face_flag(flag_id):
+    """Confirms it really is the same person — keeps the new sample, clears the flag."""
+    flag = _get_own_face_flag_or_404(flag_id)
+    flag.resolved = True
+    flag.resolved_by_id = current_user.id
+    flag.resolved_at = db.func.now()
+    db.session.commit()
+    flash("Face sample approved.", "success")
+    return redirect(url_for("admin.face_flags"))
+
+
+@admin_bp.route("/face-flags/<int:flag_id>/revert", methods=["POST"])
+@role_required(RoleEnum.ADMIN)
+def revert_face_flag(flag_id):
+    """Rejects the flagged sample entirely — deletes it so it stops being used to verify check-ins."""
+    flag = _get_own_face_flag_or_404(flag_id)
+    if flag.new_face_photo is not None:
+        db.session.delete(flag.new_face_photo)
+    flag.resolved = True
+    flag.resolved_by_id = current_user.id
+    flag.resolved_at = db.func.now()
+    db.session.commit()
+    flash("Flagged face sample was removed.", "info")
+    return redirect(url_for("admin.face_flags"))
+
+
+def _get_own_face_flag_or_404(flag_id: int) -> FaceReviewFlag:
+    """Same institute-scoping guard as _get_own_join_request_or_404."""
+    flag = FaceReviewFlag.query.get_or_404(flag_id)
+    if flag.user.institute_id != current_user.institute_id:
+        abort(404)
+    return flag
